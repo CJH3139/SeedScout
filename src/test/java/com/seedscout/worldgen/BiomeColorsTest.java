@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import java.util.List;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 import org.junit.jupiter.api.Test;
 
 class BiomeColorsTest {
@@ -22,7 +22,7 @@ class BiomeColorsTest {
     @Test
     void everyOverworldBiomeHasAColor() {
         for (String path : OVERWORLD) {
-            int color = BiomeColors.colorOf(Identifier.ofVanilla(path));
+            int color = BiomeColors.colorOf(Identifier.withDefaultNamespace(path));
             assertNotEquals(BiomeColors.UNKNOWN, color, path);
             assertEquals(0xFF, color >>> 24, path + " must be opaque");
         }
@@ -30,6 +30,6 @@ class BiomeColorsTest {
 
     @Test
     void unknownBiomeFallsBackToGrey() {
-        assertEquals(BiomeColors.UNKNOWN, BiomeColors.colorOf(Identifier.of("somemod", "weird")));
+        assertEquals(BiomeColors.UNKNOWN, BiomeColors.colorOf(Identifier.fromNamespaceAndPath("somemod", "weird")));
     }
 }

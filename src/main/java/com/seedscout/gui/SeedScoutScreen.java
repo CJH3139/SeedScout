@@ -14,18 +14,18 @@ import com.seedscout.waypoint.Waypoint;
 import com.seedscout.waypoint.WaypointState;
 import java.util.List;
 import java.util.OptionalLong;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ChunkPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.ChunkPos;
 
 public class SeedScoutScreen extends Screen {
     protected static final int BACKGROUND = 0xFF101418;
@@ -48,31 +48,29 @@ public class SeedScoutScreen extends Screen {
     protected static final MapViewport viewport = new MapViewport();
     private static boolean viewportInitialized;
 
-    protected final MinecraftClient client;
     protected final SeedScoutConfig config = SeedScoutClient.config();
     private boolean dragging;
-    private TextFieldWidget seedField;
-    private ButtonWidget applyButton;
+    private EditBox seedField;
+    private Button applyButton;
     private StructureToggleBar toggleBar;
-    private ButtonWidget structureButton;
+    private Button structureButton;
     private StructurePickerWidget picker;
-    private TextFieldWidget pickerFilter;
-    private CyclingButtonWidget<Integer> radiusButton;
-    private ButtonWidget searchButton;
+    private EditBox pickerFilter;
+    private CycleButton<Integer> radiusButton;
+    private Button searchButton;
     private ResultsListWidget resultsList;
-    private ButtonWidget centerButton;
-    private ButtonWidget clearButton;
-    private CyclingButtonWidget<Boolean> beamButton;
-    private static Identifier lastStructure = Identifier.ofVanilla("village_plains");
+    private Button centerButton;
+    private Button clearButton;
+    private CycleButton<Boolean> beamButton;
+    private static Identifier lastStructure = Identifier.withDefaultNamespace("village_plains");
     private static List<StructureHit> lastResults = List.of();
 
     private static boolean searching;
 
     private static Long lastAppliedSeed;
 
-    public SeedScoutScreen(MinecraftClient client) {
-        super(Text.translatable("seedscout.screen.title"));
-        this.client = client;
+    public SeedScoutScreen(Minecraft client) {
+        super(Component.translatable("seedscout.screen.title"));
     }
 
     @Override
@@ -85,7 +83,7 @@ public class SeedScoutScreen extends Screen {
             centerOnPlayer();
         }
 
-        OptionalLong seed = SeedSource.resolve(client, config);
+        OptionalLong seed = SeedSource.resolve(minecraft, config);
         if (seed.isPresent()) {
             ensureSession(seed.getAsLong());
         } else if (lastAppliedSeed != null) {
@@ -94,22 +92,22 @@ public class SeedScoutScreen extends Screen {
             clearSession();
         }
 
-        seedField = new TextFieldWidget(textRenderer, 6, 20, 160, 18,
-                Text.translatable("seedscout.screen.seed_placeholder"));
+        seedField = new EditBox(font, 6, 20, 160, 18,
+                Component.translatable("seedscout.screen.seed_placeholder"));
         seedField.setMaxLength(64);
-        seedField.setPlaceholder(Text.translatable("seedscout.screen.seed_placeholder"));
-        seedField.setChangedListener(this::updateSeedFieldColor);
-        seedField.setText(currentSeedText());
-        boolean singleplayer = client.getServer() != null;
+        seedField.setHint(Component.translatable("seedscout.screen.seed_placeholder"));
+        seedField.setResponder(this::updateSeedFieldColor);
+        seedField.setValue(currentSeedText());
+        boolean singleplayer = minecraft.getSingleplayerServer() != null;
         seedField.setEditable(!singleplayer);
-        addDrawableChild(seedField);
+        addRenderableWidget(seedField);
 
-        applyButton = ButtonWidget.builder(
-                        Text.translatable("seedscout.screen.apply"), b -> applySeed())
-                .dimensions(170, 20, 50, 18)
+        applyButton = Button.builder(
+                        Component.translatable("seedscout.screen.apply"), b -> applySeed())
+                .bounds(170, 20, 50, 18)
                 .build();
         applyButton.active = !singleplayer;
-        addDrawableChild(applyButton);
+        addRenderableWidget(applyButton);
 
         rebuildToggleBar();
         buildRightPanel();
@@ -136,73 +134,73 @@ public class SeedScoutScreen extends Screen {
         int pw = RIGHT_PANEL_WIDTH - 12;
         int y = TOP_BAR_HEIGHT + 6;
         closePicker();
-        if (structureButton != null) remove(structureButton);
-        if (radiusButton != null) remove(radiusButton);
-        if (searchButton != null) remove(searchButton);
-        if (resultsList != null) remove(resultsList);
-        if (centerButton != null) remove(centerButton);
-        if (clearButton != null) remove(clearButton);
-        if (beamButton != null) remove(beamButton);
+        if (structureButton != null) removeWidget(structureButton);
+        if (radiusButton != null) removeWidget(radiusButton);
+        if (searchButton != null) removeWidget(searchButton);
+        if (resultsList != null) removeWidget(resultsList);
+        if (centerButton != null) removeWidget(centerButton);
+        if (clearButton != null) removeWidget(clearButton);
+        if (beamButton != null) removeWidget(beamButton);
 
         List<Identifier> ids = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
                 .map(SeedWorld::idOf).toList();
         if (!ids.contains(lastStructure)) lastStructure = ids.get(0);
-        structureButton = ButtonWidget.builder(structureLabel(), b -> togglePicker(ids))
-                .dimensions(px, y, pw, 20).build();
-        addDrawableChild(structureButton);
+        structureButton = Button.builder(structureLabel(), b -> togglePicker(ids))
+                .bounds(px, y, pw, 20).build();
+        addRenderableWidget(structureButton);
         y += 24;
 
         List<Integer> radii = List.of(2000, 5000, 10000, 50000);
         int radius = radii.contains(config.lastRadius) ? config.lastRadius : 5000;
-        radiusButton = CyclingButtonWidget
-                .<Integer>builder(r -> Text.translatable("seedscout.screen.radius_value", r), radius)
-                .values(radii)
-                .build(px, y, pw, 20, Text.translatable("seedscout.screen.radius"), (b, v) -> {
+        radiusButton = CycleButton
+                .<Integer>builder(r -> Component.translatable("seedscout.screen.radius_value", r), radius)
+                .withValues(radii)
+                .create(px, y, pw, 20, Component.translatable("seedscout.screen.radius"), (b, v) -> {
                     config.lastRadius = v;
                     SeedScoutClient.saveConfig();
                 });
-        addDrawableChild(radiusButton);
+        addRenderableWidget(radiusButton);
         y += 24;
 
-        searchButton = ButtonWidget.builder(
-                        Text.translatable("seedscout.screen.search"), b -> runSearch())
-                .dimensions(px, y, pw, 20).build();
+        searchButton = Button.builder(
+                        Component.translatable("seedscout.screen.search"), b -> runSearch())
+                .bounds(px, y, pw, 20).build();
         searchButton.active = session != null && !searching;
-        addDrawableChild(searchButton);
+        addRenderableWidget(searchButton);
         y += 24;
 
-        resultsList = new ResultsListWidget(client, pw, Math.max(20, height - y - 54), y, this::pickResult);
+        resultsList = new ResultsListWidget(minecraft, pw, Math.max(20, height - y - 54), y, this::pickResult);
         resultsList.setX(px);
         if (searching) {
-            resultsList.setStatus(Text.translatable("seedscout.screen.searching"));
+            resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
         } else {
             resultsList.setResults(lastResults);
         }
-        addDrawableChild(resultsList);
+        addRenderableWidget(resultsList);
 
         int bottomY = height - 26;
-        beamButton = CyclingButtonWidget.onOffBuilder(config.showBeam)
-                .build(px, bottomY, pw / 2 - 2, 20, Text.translatable("seedscout.screen.beam"), (b, v) -> {
+        beamButton = CycleButton.onOffBuilder(config.showBeam)
+                .create(px, bottomY, pw / 2 - 2, 20, Component.translatable("seedscout.screen.beam"), (b, v) -> {
                     config.showBeam = v;
                     SeedScoutClient.saveConfig();
                 });
-        addDrawableChild(beamButton);
-        centerButton = ButtonWidget.builder(
-                        Text.translatable("seedscout.screen.center"), b -> centerOnPlayer())
-                .dimensions(px, height - 50, pw, 20).build();
-        addDrawableChild(centerButton);
-        clearButton = ButtonWidget.builder(
-                        Text.translatable("seedscout.screen.clear_waypoint"), b -> {
+        addRenderableWidget(beamButton);
+        centerButton = Button.builder(
+                        Component.translatable("seedscout.screen.center"), b -> centerOnPlayer())
+                .bounds(px, height - 50, pw, 20).build();
+        addRenderableWidget(centerButton);
+        clearButton = Button.builder(
+                        Component.translatable("seedscout.screen.clear_waypoint"), b -> {
                             WaypointState.clear();
                             b.active = false;
                         })
-                .dimensions(px + pw / 2 + 2, bottomY, pw / 2 - 2, 20).build();
+                .bounds(px + pw / 2 + 2, bottomY, pw / 2 - 2, 20).build();
         clearButton.active = WaypointState.get().isPresent();
-        addDrawableChild(clearButton);
+        addRenderableWidget(clearButton);
     }
 
-    private Text structureLabel() {
-        return Text.literal(StructureIcons.displayName(lastStructure));
+    private Component structureLabel() {
+        return Component.literal(StructureIcons.displayName(lastStructure));
     }
 
     private void selectStructure(Identifier id) {
@@ -219,23 +217,23 @@ public class SeedScoutScreen extends Screen {
         int x = width - RIGHT_PANEL_WIDTH - w - 8;
         int y = TOP_BAR_HEIGHT + 6;
         int h = Math.min(320, height - y - 10);
-        pickerFilter = new TextFieldWidget(textRenderer, x, y, w, 18, Text.translatable("seedscout.screen.filter"));
-        pickerFilter.setPlaceholder(Text.translatable("seedscout.screen.filter"));
+        pickerFilter = new EditBox(font, x, y, w, 18, Component.translatable("seedscout.screen.filter"));
+        pickerFilter.setHint(Component.translatable("seedscout.screen.filter"));
         pickerFilter.setMaxLength(32);
-        picker = new StructurePickerWidget(client, x, y + 22, w, h - 22, ids, id -> {
+        picker = new StructurePickerWidget(minecraft, x, y + 22, w, h - 22, ids, id -> {
             selectStructure(id);
             closePicker();
         });
-        pickerFilter.setChangedListener(text -> picker.filter(text));
-        addDrawableChild(pickerFilter);
-        addDrawableChild(picker);
+        pickerFilter.setResponder(text -> picker.filter(text));
+        addRenderableWidget(pickerFilter);
+        addRenderableWidget(picker);
         setFocused(pickerFilter);
         pickerFilter.setFocused(true);
     }
 
     private void closePicker() {
-        if (picker != null) remove(picker);
-        if (pickerFilter != null) remove(pickerFilter);
+        if (picker != null) removeWidget(picker);
+        if (pickerFilter != null) removeWidget(pickerFilter);
         picker = null;
         pickerFilter = null;
     }
@@ -256,7 +254,7 @@ public class SeedScoutScreen extends Screen {
         MapSession current = session;
         searching = true;
         lastResults = List.of();
-        resultsList.setStatus(Text.translatable("seedscout.screen.searching"));
+        resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
         searchButton.active = false;
         double cx = viewport.centerX;
         double cz = viewport.centerZ;
@@ -267,21 +265,21 @@ public class SeedScoutScreen extends Screen {
                 hits = current.world().findStructures(current.world().structure(structureId), center, radiusBlocks / 16, 20);
             } catch (Throwable t) {
                 SeedScoutClient.LOGGER.error("Search failed", t);
-                client.execute(() -> {
+                minecraft.execute(() -> {
                     if (session != current) return;
                     searching = false;
-                    if (client.currentScreen instanceof SeedScoutScreen s) {
-                        s.resultsList.setStatus(Text.translatable("seedscout.screen.search_failed"));
+                    if (minecraft.gui.screen() instanceof SeedScoutScreen s) {
+                        s.resultsList.setStatus(Component.translatable("seedscout.screen.search_failed"));
                         s.searchButton.active = true;
                     }
                 });
                 return;
             }
-            client.execute(() -> {
+            minecraft.execute(() -> {
                 if (session != current) return;
                 searching = false;
                 lastResults = hits;
-                if (client.currentScreen instanceof SeedScoutScreen s) {
+                if (minecraft.gui.screen() instanceof SeedScoutScreen s) {
                     s.resultsList.setResults(hits);
                     s.searchButton.active = true;
                 }
@@ -292,36 +290,36 @@ public class SeedScoutScreen extends Screen {
     protected void pickResult(StructureHit hit) {
         Identifier id = SeedWorld.idOf(hit.structure());
         WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id));
-        close();
+        onClose();
     }
 
     protected void centerOnPlayer() {
-        if (client.player != null) {
-            viewport.centerX = client.player.getX();
-            viewport.centerZ = client.player.getZ();
+        if (minecraft.player != null) {
+            viewport.centerX = minecraft.player.getX();
+            viewport.centerZ = minecraft.player.getZ();
             viewportInitialized = true;
         }
     }
 
     private String currentSeedText() {
-        if (client.getServer() != null) {
-            return Long.toString(client.getServer().getOverworld().getSeed());
+        if (minecraft.getSingleplayerServer() != null) {
+            return Long.toString(minecraft.getSingleplayerServer().overworld().getSeed());
         }
-        return SeedSource.storageKey(client).flatMap(config::seedFor).orElse("");
+        return SeedSource.storageKey(minecraft).flatMap(config::seedFor).orElse("");
     }
 
     private void updateSeedFieldColor(String text) {
-        seedField.setEditableColor(SeedParser.parse(text).isPresent() ? 0xFFFFFF : 0xFF5555);
+        seedField.setTextColor(SeedParser.parse(text).isPresent() ? 0xFFFFFF : 0xFF5555);
     }
 
     private void applySeed() {
-        OptionalLong parsed = SeedParser.parse(seedField.getText());
+        OptionalLong parsed = SeedParser.parse(seedField.getValue());
         if (parsed.isEmpty()) {
-            updateSeedFieldColor(seedField.getText());
+            updateSeedFieldColor(seedField.getValue());
             return;
         }
-        SeedSource.storageKey(client).ifPresent(key -> {
-            config.putSeed(key, seedField.getText().trim());
+        SeedSource.storageKey(minecraft).ifPresent(key -> {
+            config.putSeed(key, seedField.getValue().trim());
             SeedScoutClient.saveConfig();
         });
         long parsedSeed = parsed.getAsLong();
@@ -371,14 +369,14 @@ public class SeedScoutScreen extends Screen {
         loadingSeed = seed;
         MapWorker.submit(() -> {
             try {
-                MapSession fresh = MapSession.open(seed, client.getTextureManager());
-                client.execute(() -> {
+                MapSession fresh = MapSession.open(seed, minecraft.getTextureManager());
+                minecraft.execute(() -> {
                     boolean seedChanged = session == null || session.seed() != seed;
                     if (session != null) session.close();
                     session = fresh;
                     lastResults = List.of();
                     searching = false;
-                    if (client.currentScreen instanceof SeedScoutScreen screen) {
+                    if (minecraft.gui.screen() instanceof SeedScoutScreen screen) {
                         screen.rebuildToggleBar();
                         screen.buildRightPanel();
                     }
@@ -389,16 +387,16 @@ public class SeedScoutScreen extends Screen {
                 });
             } catch (Throwable t) {
                 SeedScoutClient.LOGGER.error("Could not build worldgen for seed {}", seed, t);
-                client.execute(() -> {
+                minecraft.execute(() -> {
                     if (session != null) {
                         session.close();
                         session = null;
                     }
-                    sessionError = Text.translatable("seedscout.screen.unsupported").getString();
+                    sessionError = Component.translatable("seedscout.screen.unsupported").getString();
                     errorSeed = seed;
                     lastResults = List.of();
                     searching = false;
-                    if (client.currentScreen instanceof SeedScoutScreen screen) {
+                    if (minecraft.gui.screen() instanceof SeedScoutScreen screen) {
                         screen.buildRightPanel();
                     }
                     sessionLoading = false;
@@ -418,34 +416,34 @@ public class SeedScoutScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         context.fill(0, 0, width, height, BACKGROUND);
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float deltaTicks) {
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         renderMap(context);
         renderStructureIcons(context);
         context.fill(0, 0, width, TOP_BAR_HEIGHT, PANEL);
         context.fill(width - RIGHT_PANEL_WIDTH, TOP_BAR_HEIGHT, width, height, PANEL);
-        context.drawTextWithShadow(textRenderer, title, 6, 6, TEXT);
-        if (toggleBar != null) toggleBar.render(context, textRenderer, mouseX, mouseY);
+        context.text(font, title, 6, 6, TEXT);
+        if (toggleBar != null) toggleBar.render(context, font, mouseX, mouseY);
         if (picker != null) {
             context.fill(pickerFilter.getX() - 4, pickerFilter.getY() - 4, pickerFilter.getX() + pickerFilter.getWidth() + 4,
                     picker.getY() + picker.getHeight() + 4, 0xFF0B0E12);
             context.fill(pickerFilter.getX() - 3, pickerFilter.getY() - 3, pickerFilter.getX() + pickerFilter.getWidth() + 3,
                     picker.getY() + picker.getHeight() + 3, PANEL);
         }
-        super.render(context, mouseX, mouseY, deltaTicks);
+        super.extractRenderState(context, mouseX, mouseY, deltaTicks);
         renderOverlays(context, mouseX, mouseY);
     }
 
-    private void renderMap(DrawContext context) {
+    private void renderMap(GuiGraphicsExtractor context) {
         if (session == null) return;
         int lod = viewport.lod();
         List<TileKey> keys = TileKey.covering(lod, viewport.minBlockX(), viewport.minBlockZ(),
@@ -463,7 +461,7 @@ public class SeedScoutScreen extends Screen {
             int h = Math.max(1, ey - sy);
             var texture = session.tiles().textureFor(key);
             if (texture.isPresent()) {
-                context.drawTexture(RenderPipelines.GUI_TEXTURED, texture.get(), sx, sy, 0, 0, w, h,
+                context.blit(RenderPipelines.GUI_TEXTURED, texture.get(), sx, sy, 0, 0, w, h,
                         TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, TileKey.TILE_PIXELS);
             } else {
                 context.fill(sx, sy, sx + w, sy + h, session.tiles().isFailed(key) ? FAILED : PLACEHOLDER);
@@ -472,7 +470,7 @@ public class SeedScoutScreen extends Screen {
         context.disableScissor();
     }
 
-    private void renderStructureIcons(DrawContext context) {
+    private void renderStructureIcons(GuiGraphicsExtractor context) {
         if (session == null) return;
         List<RegionHit> hits = session.structures().query(
                 viewport.minBlockX(), viewport.minBlockZ(), viewport.maxBlockX(), viewport.maxBlockZ(),
@@ -510,46 +508,46 @@ public class SeedScoutScreen extends Screen {
             context.fill(sx - 1, sy - 10, sx + 1, sy + 10, 0xFFFF4040);
             context.fill(sx - 10, sy - 1, sx + 10, sy + 1, 0xFFFF4040);
         });
-        if (client.player != null) {
-            int sx = (int) Math.round(viewport.worldToScreenX(client.player.getX()));
-            int sy = (int) Math.round(viewport.worldToScreenZ(client.player.getZ()));
-            var matrices = context.getMatrices();
+        if (minecraft.player != null) {
+            int sx = (int) Math.round(viewport.worldToScreenX(minecraft.player.getX()));
+            int sy = (int) Math.round(viewport.worldToScreenZ(minecraft.player.getZ()));
+            var matrices = context.pose();
             matrices.pushMatrix();
             matrices.translate(sx, sy);
 
-            matrices.rotate((float) Math.toRadians(client.player.getYaw() + 180f));
-            context.drawTexture(RenderPipelines.GUI_TEXTURED, StructureIcons.ARROW, -8, -8, 0, 0, 16, 16, 16, 16);
+            matrices.rotate((float) Math.toRadians(minecraft.player.getYRot() + 180f));
+            context.blit(RenderPipelines.GUI_TEXTURED, StructureIcons.ARROW, -8, -8, 0, 0, 16, 16, 16, 16);
             matrices.popMatrix();
         }
         context.disableScissor();
     }
 
-    protected void renderOverlays(DrawContext context, int mouseX, int mouseY) {
+    protected void renderOverlays(GuiGraphicsExtractor context, int mouseX, int mouseY) {
         int mapCenterX = viewport.left + viewport.width / 2;
         int mapCenterY = viewport.top + viewport.height / 2;
         if (sessionError != null) {
-            context.drawCenteredTextWithShadow(textRenderer, sessionError, mapCenterX, mapCenterY, TEXT);
+            context.centeredText(font, sessionError, mapCenterX, mapCenterY, TEXT);
         } else if (session == null && !sessionLoading) {
-            context.drawCenteredTextWithShadow(textRenderer, Text.translatable("seedscout.screen.no_seed"), mapCenterX, mapCenterY, TEXT);
+            context.centeredText(font, Component.translatable("seedscout.screen.no_seed"), mapCenterX, mapCenterY, TEXT);
         } else if (sessionLoading) {
-            context.drawCenteredTextWithShadow(textRenderer, Text.translatable("seedscout.screen.loading"), mapCenterX, mapCenterY, TEXT);
+            context.centeredText(font, Component.translatable("seedscout.screen.loading"), mapCenterX, mapCenterY, TEXT);
         }
         if (viewport.contains(mouseX, mouseY)) {
             int bx = (int) Math.floor(viewport.screenToWorldX(mouseX));
             int bz = (int) Math.floor(viewport.screenToWorldZ(mouseY));
-            context.drawTextWithShadow(textRenderer, "X " + bx + "  Z " + bz + "  LOD " + viewport.lod(),
+            context.text(font, "X " + bx + "  Z " + bz + "  LOD " + viewport.lod(),
                     viewport.left + 4, viewport.top + viewport.height - 12, TEXT);
         }
         int pending = session == null ? 0 : session.tiles().pendingCount() + session.structures().pendingCount();
         if (pending > 0) {
             char spinner = "|/-\\".charAt((int) ((System.currentTimeMillis() / 120) % 4));
-            context.drawTextWithShadow(textRenderer, spinner + " " + pending, viewport.left + viewport.width - 40,
+            context.text(font, spinner + " " + pending, viewport.left + viewport.width - 40,
                     viewport.top + 4, TEXT);
         }
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (picker != null && !pickerContains(click.x(), click.y())) {
             closePicker();
             return true;
@@ -566,7 +564,7 @@ public class SeedScoutScreen extends Screen {
                 if (Math.abs(click.x() - sx) <= 8 && Math.abs(click.y() - sy) <= 8) {
                     Identifier id = SeedWorld.idOf(hit.structure());
                     WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id));
-                    close();
+                    onClose();
                     return true;
                 }
             }
@@ -579,13 +577,13 @@ public class SeedScoutScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         dragging = false;
         return super.mouseReleased(click);
     }
 
     @Override
-    public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+    public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY) {
         if (dragging && click.button() == 0) {
             viewport.pan(offsetX, offsetY);
             return true;
@@ -606,14 +604,14 @@ public class SeedScoutScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(KeyEvent input) {
         if (picker != null && input.isEscape()) {
             closePicker();
             return true;
         }
         boolean typing = (seedField != null && seedField.isFocused()) || (pickerFilter != null && pickerFilter.isFocused());
-        if (!typing && SeedScoutClient.OPEN_MAP.matchesKey(input)) {
-            close();
+        if (!typing && SeedScoutClient.OPEN_MAP.matches(input)) {
+            onClose();
             return true;
         }
         return super.keyPressed(input);

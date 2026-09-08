@@ -4,20 +4,20 @@ import com.seedscout.SeedScoutClient;
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.RenderPipelines;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.TexturedRenderLayers;
-import net.minecraft.client.texture.Sprite;
-import net.minecraft.client.util.SpriteIdentifier;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.Sheets;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.sprite.SpriteId;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public final class StructureIcons {
-    public static final Identifier GENERIC = Identifier.of(SeedScoutClient.MOD_ID, "textures/gui/icons/generic.png");
-    public static final Identifier ARROW = Identifier.of(SeedScoutClient.MOD_ID, "textures/gui/arrow.png");
+    public static final Identifier GENERIC = Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "textures/gui/icons/generic.png");
+    public static final Identifier ARROW = Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "textures/gui/arrow.png");
 
     private static final Map<Identifier, Identifier> ICON_CACHE = new HashMap<>();
     private static final Map<Identifier, Identifier> MAP_SPRITES = new HashMap<>();
@@ -64,39 +64,39 @@ public final class StructureIcons {
     private StructureIcons() {}
 
     private static void sprite(String structurePath, String spriteName) {
-        MAP_SPRITES.put(Identifier.ofVanilla(structurePath), Identifier.ofVanilla(spriteName));
+        MAP_SPRITES.put(Identifier.withDefaultNamespace(structurePath), Identifier.withDefaultNamespace(spriteName));
     }
 
     private static void item(String structurePath, Item item) {
-        ITEMS.put(Identifier.ofVanilla(structurePath), item);
+        ITEMS.put(Identifier.withDefaultNamespace(structurePath), item);
     }
 
     public static Identifier iconFor(Identifier structureId) {
         return ICON_CACHE.computeIfAbsent(structureId, id -> {
-            Identifier candidate = Identifier.of(SeedScoutClient.MOD_ID, "textures/gui/icons/" + id.getPath() + ".png");
-            boolean exists = MinecraftClient.getInstance().getResourceManager().getResource(candidate).isPresent();
+            Identifier candidate = Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "textures/gui/icons/" + id.getPath() + ".png");
+            boolean exists = Minecraft.getInstance().getResourceManager().getResource(candidate).isPresent();
             return exists ? candidate : GENERIC;
         });
     }
 
-    public static void drawIcon(DrawContext context, Identifier structureId, int x, int y) {
+    public static void drawIcon(GuiGraphicsExtractor context, Identifier structureId, int x, int y) {
         Identifier icon = iconFor(structureId);
         if (!icon.equals(GENERIC)) {
-            context.drawTexture(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16);
+            context.blit(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16);
             return;
         }
         Identifier spriteName = MAP_SPRITES.get(structureId);
         if (spriteName != null) {
-            Sprite sprite = context.getSprite(new SpriteIdentifier(TexturedRenderLayers.MAP_DECORATIONS_ATLAS_TEXTURE, spriteName));
-            context.drawSpriteStretched(RenderPipelines.GUI_TEXTURED, sprite, x, y, 16, 16);
+            TextureAtlasSprite sprite = context.getSprite(new SpriteId(Sheets.MAP_DECORATIONS_SHEET, spriteName));
+            context.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, 16, 16);
             return;
         }
         Item item = ITEMS.get(structureId);
         if (item != null) {
-            context.drawItemWithoutEntity(new ItemStack(item), x, y);
+            context.item(new ItemStack(item), x, y);
             return;
         }
-        context.drawTexture(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16, colorFor(structureId));
+        context.blit(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16, colorFor(structureId));
     }
 
     public static int colorFor(Identifier structureId) {

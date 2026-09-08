@@ -1,10 +1,10 @@
 package com.seedscout.worldgen;
 
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.gen.structure.Structure;
+import net.minecraft.core.Holder;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.levelgen.structure.Structure;
 
-public record StructureHit(RegistryEntry<Structure> structure, ChunkPos chunk, int blockX, int blockZ, double distance) {
+public record StructureHit(Holder<Structure> structure, ChunkPos chunk, int blockX, int blockZ, double distance) {
     public static StructureHit of(RegionHit hit, int centerBlockX, int centerBlockZ) {
         double dx = hit.blockX() - centerBlockX;
         double dz = hit.blockZ() - centerBlockZ;

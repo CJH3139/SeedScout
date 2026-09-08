@@ -1,5 +1,6 @@
 package com.seedscout;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.seedscout.config.SeedScoutConfig;
 import com.seedscout.gui.SeedScoutScreen;
 import com.seedscout.map.MapWorker;
@@ -9,13 +10,12 @@ import com.seedscout.waypoint.WaypointState;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,11 +24,11 @@ public final class SeedScoutClient implements ClientModInitializer {
     public static final String MOD_ID = "seedscout";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    public static final KeyBinding OPEN_MAP = new KeyBinding(
+    public static final KeyMapping OPEN_MAP = new KeyMapping(
             "key.seedscout.open_map",
-            InputUtil.Type.KEYSYM,
+            InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_Y,
-            KeyBinding.Category.create(Identifier.of(MOD_ID, "seedscout")));
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "seedscout")));
 
     private static SeedScoutConfig config;
 
@@ -43,20 +43,20 @@ public final class SeedScoutClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         config = SeedScoutConfig.load(SeedScoutConfig.DEFAULT_PATH);
-        KeyBindingHelper.registerKeyBinding(OPEN_MAP);
-        HudElementRegistry.addLast(Identifier.of(MOD_ID, "waypoint_arrow"), HudArrowRenderer::render);
+        KeyMappingHelper.registerKeyMapping(OPEN_MAP);
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(MOD_ID, "waypoint_arrow"), HudArrowRenderer::render);
 
         BeamRenderer.init();
-        WorldRenderEvents.BEFORE_TRANSLUCENT.register(BeamRenderer::render);
+        LevelRenderEvents.COLLECT_SUBMITS.register(BeamRenderer::render);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             WaypointState.tick(client);
-            while (OPEN_MAP.wasPressed()) {
+            while (OPEN_MAP.consumeClick()) {
                 if (client.player == null) continue;
-                if (client.currentScreen instanceof SeedScoutScreen) {
-                    client.setScreen(null);
+                if (client.gui.screen() instanceof SeedScoutScreen) {
+                    client.gui.setScreen(null);
                 } else {
-                    client.setScreen(new SeedScoutScreen(client));
+                    client.gui.setScreen(new SeedScoutScreen(client));
                 }
             }
         });

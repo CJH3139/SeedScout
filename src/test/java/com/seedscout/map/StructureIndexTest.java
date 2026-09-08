@@ -11,30 +11,30 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import net.minecraft.Bootstrap;
 import net.minecraft.SharedConstants;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.gen.structure.Structure;
+import net.minecraft.core.Holder;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class StructureIndexTest {
-    private static final Identifier VILLAGES = Identifier.ofVanilla("villages");
-    private static final Identifier VILLAGE_PLAINS = Identifier.ofVanilla("village_plains");
-    private static final Identifier VILLAGE_DESERT = Identifier.ofVanilla("village_desert");
-    private static final Identifier STRONGHOLD = Identifier.ofVanilla("stronghold");
+    private static final Identifier VILLAGES = Identifier.withDefaultNamespace("villages");
+    private static final Identifier VILLAGE_PLAINS = Identifier.withDefaultNamespace("village_plains");
+    private static final Identifier VILLAGE_DESERT = Identifier.withDefaultNamespace("village_desert");
+    private static final Identifier STRONGHOLD = Identifier.withDefaultNamespace("stronghold");
 
     private static SeedWorld world;
-    private static RegistryEntry<Structure> plains;
-    private static RegistryEntry<Structure> desert;
-    private static RegistryEntry<Structure> stronghold;
+    private static Holder<Structure> plains;
+    private static Holder<Structure> desert;
+    private static Holder<Structure> stronghold;
 
     @BeforeAll
     static void bootstrap() {
-        SharedConstants.createGameVersion();
-        Bootstrap.initialize();
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
         TestRegistryBootstrap.bindVanillaTags();
         world = SeedWorld.create(1L);
         plains = world.structure(VILLAGE_PLAINS);
@@ -92,7 +92,7 @@ class StructureIndexTest {
                 (setId, rx, rz) -> Optional.of(hit(rx, rz)),
                 setId -> List.of(),
                 worker, main);
-        index.query(0, 0, 600, 600, Set.of(Identifier.ofVanilla("monument")));
+        index.query(0, 0, 600, 600, Set.of(Identifier.withDefaultNamespace("monument")));
         assertTrue(worker.queue.isEmpty());
     }
 
@@ -100,7 +100,7 @@ class StructureIndexTest {
     void concentricSetsAreComputedOnceAndFilteredToViewport() {
         ManualExecutor worker = new ManualExecutor();
         ManualExecutor main = new ManualExecutor();
-        Identifier strongholds = Identifier.ofVanilla("strongholds");
+        Identifier strongholds = Identifier.withDefaultNamespace("strongholds");
         int[] calls = {0};
         StructureIndex index = new StructureIndex(
                 List.of(new StructureIndex.SetInfo(strongholds, 0, true, Set.of(STRONGHOLD))),
@@ -162,7 +162,7 @@ class StructureIndexTest {
                 List.of(new StructureIndex.SetInfo(VILLAGES, 34, false, Set.of(VILLAGE_PLAINS, VILLAGE_DESERT))),
                 (setId, rx, rz) -> {
                     probed.add(new int[]{rx, rz});
-                    RegistryEntry<Structure> structure = rx == 0 ? plains : desert;
+                    Holder<Structure> structure = rx == 0 ? plains : desert;
                     return Optional.of(new RegionHit(structure, new ChunkPos(rx * 34, rz * 34), rx * 34 * 16, rz * 34 * 16));
                 },
                 setId -> List.of(),
@@ -185,7 +185,7 @@ class StructureIndexTest {
         List<int[]> probed = new ArrayList<>();
 
         StructureIndex index = new StructureIndex(
-                List.of(new StructureIndex.SetInfo(Identifier.ofVanilla("mineshafts"), 1, false, Set.of(VILLAGE_PLAINS))),
+                List.of(new StructureIndex.SetInfo(Identifier.withDefaultNamespace("mineshafts"), 1, false, Set.of(VILLAGE_PLAINS))),
                 (setId, rx, rz) -> { probed.add(new int[]{rx, rz}); return Optional.of(hit(rx, rz)); },
                 setId -> List.of(),
                 worker, main);
@@ -203,7 +203,7 @@ class StructureIndexTest {
         ManualExecutor worker = new ManualExecutor();
         ManualExecutor main = new ManualExecutor();
         StructureIndex index = new StructureIndex(
-                List.of(new StructureIndex.SetInfo(Identifier.ofVanilla("mineshafts"), 1, false, Set.of(VILLAGE_PLAINS))),
+                List.of(new StructureIndex.SetInfo(Identifier.withDefaultNamespace("mineshafts"), 1, false, Set.of(VILLAGE_PLAINS))),
                 (setId, rx, rz) -> Optional.of(hit(rx, rz)),
                 setId -> List.of(),
                 worker, main);

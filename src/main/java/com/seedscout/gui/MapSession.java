@@ -11,20 +11,20 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.TextureManager;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.structure.StructureSet;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.gen.chunk.placement.ConcentricRingsStructurePlacement;
-import net.minecraft.world.gen.chunk.placement.RandomSpreadStructurePlacement;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.core.Holder;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.levelgen.structure.StructureSet;
+import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 
 public final class MapSession {
     private final SeedWorld world;
     private final TileCache tiles;
     private final StructureIndex structures;
     private final TilePixels.ColorSampler biomeColors;
-    private final List<RegistryEntry.Reference<StructureSet>> sets;
+    private final List<Holder.Reference<StructureSet>> sets;
     private final Set<Identifier> enabledStructures = new HashSet<>();
 
     private MapSession(SeedWorld world, TextureManager textureManager) {
@@ -33,22 +33,22 @@ public final class MapSession {
         this.biomeColors = (x, z) -> BiomeColors.colorOf(SeedWorld.idOf(world.biomeAt(x, z)));
         this.sets = world.allStructureSets();
         for (String id : SeedScoutClient.config().enabledStructures) {
-            enabledStructures.add(Identifier.of(id));
+            enabledStructures.add(Identifier.parse(id));
         }
 
         List<StructureIndex.SetInfo> infos = new ArrayList<>();
-        for (RegistryEntry.Reference<StructureSet> set : sets) {
+        for (Holder.Reference<StructureSet> set : sets) {
             Set<Identifier> ids = new HashSet<>();
-            for (StructureSet.WeightedEntry entry : set.value().structures()) {
+            for (StructureSet.StructureSelectionEntry entry : set.value().structures()) {
                 ids.add(SeedWorld.idOf(entry.structure()));
             }
             if (set.value().placement() instanceof RandomSpreadStructurePlacement spread) {
-                infos.add(new StructureIndex.SetInfo(SeedWorld.idOf(set), spread.getSpacing(), false, ids));
+                infos.add(new StructureIndex.SetInfo(SeedWorld.idOf(set), spread.spacing(), false, ids));
             } else if (set.value().placement() instanceof ConcentricRingsStructurePlacement) {
                 infos.add(new StructureIndex.SetInfo(SeedWorld.idOf(set), 0, true, ids));
             }
         }
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         this.structures = new StructureIndex(
                 infos,
                 (setId, rx, rz) -> world.structureInRegion(setById(setId), rx, rz),
@@ -57,8 +57,8 @@ public final class MapSession {
                 client::execute);
     }
 
-    private RegistryEntry.Reference<StructureSet> setById(Identifier id) {
-        for (RegistryEntry.Reference<StructureSet> set : sets) {
+    private Holder.Reference<StructureSet> setById(Identifier id) {
+        for (Holder.Reference<StructureSet> set : sets) {
             if (SeedWorld.idOf(set).equals(id)) return set;
         }
         throw new IllegalArgumentException("Unknown structure set " + id);

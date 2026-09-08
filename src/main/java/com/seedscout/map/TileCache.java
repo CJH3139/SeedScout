@@ -1,5 +1,6 @@
 package com.seedscout.map;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import com.seedscout.SeedScoutClient;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -8,11 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.client.texture.TextureManager;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.resources.Identifier;
 
 public final class TileCache {
     public static final int CAPACITY = 512;
@@ -81,7 +81,7 @@ public final class TileCache {
     }
 
     private void renderJob(TileKey key, int gen, TilePixels.ColorSampler sampler) {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         Set<TileKey> visibleSnapshot = visible;
         if (gen != generation || !visibleSnapshot.contains(key)) {
             client.execute(() -> {
@@ -95,7 +95,7 @@ public final class TileCache {
             image = new NativeImage(TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, false);
             for (int pz = 0; pz < TileKey.TILE_PIXELS; pz++) {
                 for (int px = 0; px < TileKey.TILE_PIXELS; px++) {
-                    image.setColorArgb(px, pz, pixels[pz * TileKey.TILE_PIXELS + px]);
+                    image.setPixel(px, pz, pixels[pz * TileKey.TILE_PIXELS + px]);
                 }
             }
         } catch (Throwable t) {
@@ -122,10 +122,10 @@ public final class TileCache {
             image.close();
             return;
         }
-        Identifier id = Identifier.of(SeedScoutClient.MOD_ID,
+        Identifier id = Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID,
                 "tile/" + key.lod() + "/" + key.tileX() + "/" + key.tileZ() + "/" + gen);
-        NativeImageBackedTexture texture = new NativeImageBackedTexture(id::toString, image);
-        textureManager.registerTexture(id, texture);
+        DynamicTexture texture = new DynamicTexture(id::toString, image);
+        textureManager.register(id, texture);
         entry.textureId = id;
         entry.state = State.READY;
     }
@@ -144,7 +144,7 @@ public final class TileCache {
 
     private void destroy(Entry entry) {
         if (entry.state == State.READY) {
-            textureManager.destroyTexture(entry.textureId);
+            textureManager.release(entry.textureId);
         }
     }
 

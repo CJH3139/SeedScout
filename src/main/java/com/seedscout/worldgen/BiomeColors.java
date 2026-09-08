@@ -2,7 +2,7 @@ package com.seedscout.worldgen;
 
 import java.util.HashMap;
 import java.util.Map;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 
 public final class BiomeColors {
     public static final int UNKNOWN = 0xFF7F7F7F;
@@ -69,7 +69,7 @@ public final class BiomeColors {
     private BiomeColors() {}
 
     private static void put(String path, int rgb) {
-        COLORS.put(Identifier.ofVanilla(path), 0xFF000000 | rgb);
+        COLORS.put(Identifier.withDefaultNamespace(path), 0xFF000000 | rgb);
     }
 
     public static int colorOf(Identifier biomeId) {

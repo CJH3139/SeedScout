@@ -2,11 +2,11 @@ package com.seedscout.gui;
 
 import java.util.List;
 import java.util.function.Consumer;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import java.util.Set;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 
 public final class StructureToggleBar {
     private static final int CELL = 20;
@@ -41,7 +41,7 @@ public final class StructureToggleBar {
         return ids.size() > visibleCount();
     }
 
-    public void render(DrawContext context, TextRenderer textRenderer, int mouseX, int mouseY) {
+    public void render(GuiGraphicsExtractor context, Font textRenderer, int mouseX, int mouseY) {
         int startX = x + (overflows() ? ARROW_WIDTH : 0);
         int count = Math.min(visibleCount(), ids.size() - offset);
         Identifier hovered = null;
@@ -56,11 +56,11 @@ public final class StructureToggleBar {
             }
         }
         if (overflows()) {
-            context.drawTextWithShadow(textRenderer, "<", x + 2, y + 5, 0xFFFFFFFF);
-            context.drawTextWithShadow(textRenderer, ">", x + width - ARROW_WIDTH + 3, y + 5, 0xFFFFFFFF);
+            context.text(textRenderer, "<", x + 2, y + 5, 0xFFFFFFFF);
+            context.text(textRenderer, ">", x + width - ARROW_WIDTH + 3, y + 5, 0xFFFFFFFF);
         }
         if (hovered != null) {
-            context.drawTooltip(textRenderer, Text.literal(StructureIcons.displayName(hovered)), mouseX, mouseY);
+            context.setTooltipForNextFrame(textRenderer, Component.literal(StructureIcons.displayName(hovered)), mouseX, mouseY);
         }
     }
 

@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 
 public final class StructureIndex {
     public static final int MAX_REGIONS_PER_QUERY = 4096;

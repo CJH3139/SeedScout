@@ -8,18 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.util.List;
-import net.minecraft.Bootstrap;
 import net.minecraft.SharedConstants;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.gen.structure.Structure;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -35,15 +33,15 @@ class SeedWorldTest {
 
     @BeforeAll
     static void bootstrap() {
-        SharedConstants.createGameVersion();
-        Bootstrap.initialize();
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
         TestRegistryBootstrap.bindVanillaTags();
         world = SeedWorld.create(1L);
     }
 
     @Test
     void biomeAtReturnsAnOverworldBiome() {
-        RegistryEntry<?> biome = world.biomeAt(0, 0);
+        Holder<?> biome = world.biomeAt(0, 0);
         assertNotNull(biome);
         assertEquals("minecraft", SeedWorld.idOf(biome).getNamespace());
     }
@@ -57,7 +55,7 @@ class SeedWorldTest {
 
     @Test
     void villageSearchFindsSomethingWithin10kBlocks() {
-        RegistryEntry<Structure> village = world.structure(Identifier.ofVanilla("village_plains"));
+        Holder<Structure> village = world.structure(Identifier.withDefaultNamespace("village_plains"));
         List<StructureHit> hits = world.findStructures(village, new ChunkPos(0, 0), 10000 / 16, 5);
         assertFalse(hits.isEmpty());
         for (StructureHit hit : hits) {
@@ -70,14 +68,14 @@ class SeedWorldTest {
 
     @Test
     void strongholdSearchReturnsRingPositions() {
-        RegistryEntry<Structure> stronghold = world.structure(Identifier.ofVanilla("stronghold"));
+        Holder<Structure> stronghold = world.structure(Identifier.withDefaultNamespace("stronghold"));
         List<StructureHit> hits = world.findStructures(stronghold, new ChunkPos(0, 0), 100000 / 16, 3);
         assertEquals(3, hits.size());
     }
 
     @Test
     void denseStructureSearchStaysBounded() {
-        RegistryEntry<Structure> mineshaft = world.structure(Identifier.ofVanilla("mineshaft"));
+        Holder<Structure> mineshaft = world.structure(Identifier.withDefaultNamespace("mineshaft"));
         List<StructureHit> hits = assertTimeoutPreemptively(Duration.ofSeconds(30),
                 () -> world.findStructures(mineshaft, new ChunkPos(0, 0), 50000 / 16, 20));
         assertFalse(hits.isEmpty(), "mineshafts are dense enough to appear inside the shrunk radius");
@@ -91,17 +89,17 @@ class SeedWorldTest {
 
     @Test
     void matchesInGameLocateForSeed1() {
-        RegistryEntry<Structure> village = world.structure(Identifier.ofVanilla("village_plains"));
+        Holder<Structure> village = world.structure(Identifier.withDefaultNamespace("village_plains"));
         StructureHit nearestVillage = world.findStructures(village, new ChunkPos(0, 0), 10000 / 16, 1).get(0);
         assertEquals(RECORDED_VILLAGE_X, nearestVillage.blockX());
         assertEquals(RECORDED_VILLAGE_Z, nearestVillage.blockZ());
 
-        RegistryEntry<Structure> monument = world.structure(Identifier.ofVanilla("monument"));
+        Holder<Structure> monument = world.structure(Identifier.withDefaultNamespace("monument"));
         StructureHit nearestMonument = world.findStructures(monument, new ChunkPos(0, 0), 10000 / 16, 1).get(0);
         assertEquals(RECORDED_MONUMENT_X, nearestMonument.blockX());
         assertEquals(RECORDED_MONUMENT_Z, nearestMonument.blockZ());
 
-        RegistryEntry<Structure> stronghold = world.structure(Identifier.ofVanilla("stronghold"));
+        Holder<Structure> stronghold = world.structure(Identifier.withDefaultNamespace("stronghold"));
         StructureHit nearestStronghold = world.findStructures(stronghold, new ChunkPos(0, 0), 100000 / 16, 1).get(0);
         assertEquals(RECORDED_STRONGHOLD_X, nearestStronghold.blockX());
         assertEquals(RECORDED_STRONGHOLD_Z, nearestStronghold.blockZ());
@@ -109,9 +107,9 @@ class SeedWorldTest {
 
     @Test
     void staticBlockRegistryTagsRemainBoundAfterSeedWorldCreate() {
-        assertTrue(Registries.BLOCK.getOrThrow(BlockTags.LEAVES).size() > 0, "block registry should still know its LEAVES tag");
-        assertTrue(Blocks.OAK_LEAVES.getDefaultState().isIn(BlockTags.LEAVES), "oak leaves should still report being in the LEAVES tag");
-        RegistryEntry<Block> stoneEntry = Registries.BLOCK.getEntry(Blocks.STONE);
-        assertTrue(stoneEntry.streamTags().findAny().isPresent(), "stone's registry entry should still carry at least one tag");
+        assertTrue(BuiltInRegistries.BLOCK.getOrThrow(BlockTags.LEAVES).size() > 0, "block registry should still know its LEAVES tag");
+        assertTrue(Blocks.OAK_LEAVES.defaultBlockState().is(BlockTags.LEAVES), "oak leaves should still report being in the LEAVES tag");
+        Holder<Block> stoneEntry = BuiltInRegistries.BLOCK.wrapAsHolder(Blocks.STONE);
+        assertTrue(stoneEntry.tags().findAny().isPresent(), "stone's registry entry should still carry at least one tag");
     }
 }

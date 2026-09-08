@@ -1,6 +1,6 @@
 # SeedScout
 
-A client-side Fabric mod for Minecraft 1.21.11 that puts a Chunkbase-style seed map inside the game. Press a key, see the biome map for your world's seed, search for structures, and set a waypoint that guides you there with a HUD arrow and a beam in the world.
+A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map inside the game. Press a key, see the biome map for your world's seed, search for structures, and set a waypoint that guides you there with a HUD arrow and a beam in the world.
 
 ## Features
 
@@ -15,7 +15,7 @@ A client-side Fabric mod for Minecraft 1.21.11 that puts a Chunkbase-style seed 
 
 ## Usage
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.11 and put [Fabric API](https://modrinth.com/mod/fabric-api) and the SeedScout jar in your `mods` folder.
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2 and put [Fabric API](https://modrinth.com/mod/fabric-api) and the SeedScout jar in your `mods` folder.
 2. In a world, press `Y` (rebindable in Controls under SeedScout) to open the map.
 3. In singleplayer the seed is read automatically. On a server, type the seed in the field at the top and click Apply.
 4. Use the toggles in the top bar to choose which structure types are drawn.
@@ -24,7 +24,7 @@ A client-side Fabric mod for Minecraft 1.21.11 that puts a Chunkbase-style seed 
 
 ## Building
 
-Requires JDK 21.
+Requires JDK 25. Built for Minecraft 26.2; the 1.21.11 version lives on the `1.21.11` branch.
 
 ```
 ./gradlew build
