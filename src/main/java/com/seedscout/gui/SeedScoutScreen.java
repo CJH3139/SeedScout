@@ -497,6 +497,12 @@ public class SeedScoutScreen extends Screen {
             context.fill(sx - r, sy + r - 2, sx + r, sy + r, 0xFFFFD700);
             context.fill(sx - r, sy - r, sx - r + 2, sy + r, 0xFFFFD700);
             context.fill(sx + r - 2, sy - r, sx + r, sy + r, 0xFFFFD700);
+            Identifier resultId = SeedWorld.idOf(hit.structure());
+            if (viewport.lod() >= 2) {
+                context.fill(sx - 2, sy - 2, sx + 2, sy + 2, StructureIcons.colorFor(resultId));
+            } else {
+                StructureIcons.drawIcon(context, resultId, sx - 8, sy - 8);
+            }
         }
         WaypointState.get().ifPresent(wp -> {
             int sx = (int) Math.round(viewport.worldToScreenX(wp.x()));
