@@ -11,6 +11,8 @@ A client-side Fabric mod for Minecraft 1.21.11 that puts a Chunkbase-style seed 
 - Click a result or an icon on the map to set a waypoint. A HUD arrow shows direction and distance, and a colored beam marks the spot through terrain. The waypoint clears itself when you arrive.
 - Works on multiplayer servers: enter the seed once per server and it is remembered.
 
+<img width="3840" height="2100" alt="image" src="https://github.com/user-attachments/assets/b0999fe2-5d92-405e-bbe9-d4c443830676" />
+
 ## Usage
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.21.11 and put [Fabric API](https://modrinth.com/mod/fabric-api) and the SeedScout jar in your `mods` folder.
