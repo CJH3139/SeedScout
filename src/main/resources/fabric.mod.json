@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "seedscout",
+  "version": "${version}",
+  "name": "SeedScout",
+  "description": "Chunkbase-style seed map, structure search and waypoints inside the client.",
+  "authors": ["roych"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.seedscout.SeedScoutClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-api": "*",
+    "minecraft": "~1.21.11",
+    "java": ">=21"
+  }
+}

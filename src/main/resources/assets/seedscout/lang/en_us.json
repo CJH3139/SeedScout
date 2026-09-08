@@ -1,0 +1,20 @@
+{
+  "key.seedscout.open_map": "Open Seed Map",
+  "key.category.seedscout.seedscout": "SeedScout",
+  "seedscout.screen.title": "SeedScout",
+  "seedscout.screen.seed_placeholder": "Seed",
+  "seedscout.screen.apply": "Apply",
+  "seedscout.screen.search": "Search",
+  "seedscout.screen.center": "Center on player",
+  "seedscout.screen.clear_waypoint": "Clear waypoint",
+  "seedscout.screen.no_seed": "Enter a seed above",
+  "seedscout.screen.unsupported": "Unsupported world",
+  "seedscout.screen.loading": "Loading world generation...",
+  "seedscout.screen.search_failed": "Search failed, see log",
+  "seedscout.screen.searching": "Searching...",
+  "seedscout.screen.no_results": "No results",
+  "seedscout.screen.radius": "Radius",
+  "seedscout.screen.radius_value": "%s blocks",
+  "seedscout.screen.structure": "Structure",
+  "seedscout.waypoint.arrived": "Arrived at %s"
+}
