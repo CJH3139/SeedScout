@@ -5,7 +5,7 @@
   "name": "SeedScout",
   "description": "Chunkbase-style seed map, structure search and waypoints inside the client.",
   "authors": ["roych"],
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "environment": "client",
   "entrypoints": {
     "client": ["com.seedscout.SeedScoutClient"]

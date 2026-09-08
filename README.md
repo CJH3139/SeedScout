@@ -45,4 +45,4 @@ Settings are stored in `config/seedscout.json`: saved seeds per server address, 
 
 ## License
 
-MIT
+SeedScout is released under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, copy, modify, and redistribute it, including modified versions, for any noncommercial purpose. Selling it, bundling it in a paid product, or otherwise using it commercially is not permitted. See the LICENSE file for the full terms.
