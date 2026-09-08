@@ -1,6 +1,7 @@
 package com.seedscout.gui;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.Set;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -19,15 +20,17 @@ public final class StructureToggleBar {
     private final List<Identifier> ids;
     private final Set<Identifier> enabled;
     private final Runnable onChange;
+    private final Consumer<Identifier> onSelect;
     private int offset = 0;
 
-    public StructureToggleBar(int x, int y, int width, List<Identifier> ids, Set<Identifier> enabled, Runnable onChange) {
+    public StructureToggleBar(int x, int y, int width, List<Identifier> ids, Set<Identifier> enabled, Runnable onChange, Consumer<Identifier> onSelect) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.ids = ids;
         this.enabled = enabled;
         this.onChange = onChange;
+        this.onSelect = onSelect;
     }
 
     private int visibleCount() {
@@ -62,7 +65,7 @@ public final class StructureToggleBar {
     }
 
     public boolean mouseClicked(double mx, double my, int button) {
-        if (button != 0 || my < y || my >= y + CELL) return false;
+        if ((button != 0 && button != 1) || my < y || my >= y + CELL) return false;
         if (overflows()) {
             if (mx >= x && mx < x + ARROW_WIDTH) {
                 offset = Math.max(0, offset - visibleCount());
@@ -77,6 +80,10 @@ public final class StructureToggleBar {
         int index = (int) ((mx - startX) / CELL);
         if (mx < startX || index < 0 || offset + index >= ids.size() || index >= visibleCount()) return false;
         Identifier id = ids.get(offset + index);
+        if (button == 1) {
+            onSelect.accept(id);
+            return true;
+        }
         if (!enabled.remove(id)) {
             enabled.add(id);
         }

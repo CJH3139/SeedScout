@@ -54,7 +54,9 @@ public class SeedScoutScreen extends Screen {
     private TextFieldWidget seedField;
     private ButtonWidget applyButton;
     private StructureToggleBar toggleBar;
-    private CyclingButtonWidget<Identifier> structureButton;
+    private ButtonWidget structureButton;
+    private StructurePickerWidget picker;
+    private TextFieldWidget pickerFilter;
     private CyclingButtonWidget<Integer> radiusButton;
     private ButtonWidget searchButton;
     private ResultsListWidget resultsList;
@@ -126,13 +128,14 @@ public class SeedScoutScreen extends Screen {
         toggleBar = new StructureToggleBar(230, 20, width - 230 - 4, ids, session.enabledStructures(), () -> {
             config.enabledStructures = session.enabledStructures().stream().map(Identifier::toString).sorted().toList();
             SeedScoutClient.saveConfig();
-        });
+        }, this::selectStructure);
     }
 
     void buildRightPanel() {
         int px = width - RIGHT_PANEL_WIDTH + 6;
         int pw = RIGHT_PANEL_WIDTH - 12;
         int y = TOP_BAR_HEIGHT + 6;
+        closePicker();
         if (structureButton != null) remove(structureButton);
         if (radiusButton != null) remove(radiusButton);
         if (searchButton != null) remove(searchButton);
@@ -144,10 +147,8 @@ public class SeedScoutScreen extends Screen {
         List<Identifier> ids = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
                 .map(SeedWorld::idOf).toList();
         if (!ids.contains(lastStructure)) lastStructure = ids.get(0);
-        structureButton = CyclingButtonWidget
-                .<Identifier>builder(id -> Text.literal(StructureIcons.displayName(id)), lastStructure)
-                .values(ids)
-                .build(px, y, pw, 20, Text.translatable("seedscout.screen.structure"), (b, v) -> lastStructure = v);
+        structureButton = ButtonWidget.builder(structureLabel(), b -> togglePicker(ids))
+                .dimensions(px, y, pw, 20).build();
         addDrawableChild(structureButton);
         y += 24;
 
@@ -179,17 +180,16 @@ public class SeedScoutScreen extends Screen {
         }
         addDrawableChild(resultsList);
 
+        int bottomY = height - 26;
         beamButton = CyclingButtonWidget.onOffBuilder(config.showBeam)
-                .build(px, height - 50, pw, 20, Text.translatable("seedscout.screen.beam"), (b, v) -> {
+                .build(px, bottomY, pw / 2 - 2, 20, Text.translatable("seedscout.screen.beam"), (b, v) -> {
                     config.showBeam = v;
                     SeedScoutClient.saveConfig();
                 });
         addDrawableChild(beamButton);
-
-        int bottomY = height - 26;
         centerButton = ButtonWidget.builder(
                         Text.translatable("seedscout.screen.center"), b -> centerOnPlayer())
-                .dimensions(px, bottomY, pw / 2 - 2, 20).build();
+                .dimensions(px, height - 50, pw, 20).build();
         addDrawableChild(centerButton);
         clearButton = ButtonWidget.builder(
                         Text.translatable("seedscout.screen.clear_waypoint"), b -> {
@@ -201,9 +201,57 @@ public class SeedScoutScreen extends Screen {
         addDrawableChild(clearButton);
     }
 
+    private Text structureLabel() {
+        return Text.literal(StructureIcons.displayName(lastStructure));
+    }
+
+    private void selectStructure(Identifier id) {
+        lastStructure = id;
+        if (structureButton != null) structureButton.setMessage(structureLabel());
+    }
+
+    private void togglePicker(List<Identifier> ids) {
+        if (picker != null) {
+            closePicker();
+            return;
+        }
+        int w = 220;
+        int x = width - RIGHT_PANEL_WIDTH - w - 8;
+        int y = TOP_BAR_HEIGHT + 6;
+        int h = Math.min(320, height - y - 10);
+        pickerFilter = new TextFieldWidget(textRenderer, x, y, w, 18, Text.translatable("seedscout.screen.filter"));
+        pickerFilter.setPlaceholder(Text.translatable("seedscout.screen.filter"));
+        pickerFilter.setMaxLength(32);
+        picker = new StructurePickerWidget(client, x, y + 22, w, h - 22, ids, id -> {
+            selectStructure(id);
+            closePicker();
+        });
+        pickerFilter.setChangedListener(text -> picker.filter(text));
+        addDrawableChild(pickerFilter);
+        addDrawableChild(picker);
+        setFocused(pickerFilter);
+        pickerFilter.setFocused(true);
+    }
+
+    private void closePicker() {
+        if (picker != null) remove(picker);
+        if (pickerFilter != null) remove(pickerFilter);
+        picker = null;
+        pickerFilter = null;
+    }
+
+    private boolean pickerContains(double mx, double my) {
+        if (picker == null) return false;
+        int left = pickerFilter.getX() - 4;
+        int top = pickerFilter.getY() - 4;
+        int right = pickerFilter.getX() + pickerFilter.getWidth() + 4;
+        int bottom = picker.getY() + picker.getHeight() + 4;
+        return mx >= left && mx < right && my >= top && my < bottom;
+    }
+
     private void runSearch() {
         if (session == null) return;
-        Identifier structureId = structureButton.getValue();
+        Identifier structureId = lastStructure;
         int radiusBlocks = radiusButton.getValue();
         MapSession current = session;
         searching = true;
@@ -387,6 +435,12 @@ public class SeedScoutScreen extends Screen {
         context.fill(width - RIGHT_PANEL_WIDTH, TOP_BAR_HEIGHT, width, height, PANEL);
         context.drawTextWithShadow(textRenderer, title, 6, 6, TEXT);
         if (toggleBar != null) toggleBar.render(context, textRenderer, mouseX, mouseY);
+        if (picker != null) {
+            context.fill(pickerFilter.getX() - 4, pickerFilter.getY() - 4, pickerFilter.getX() + pickerFilter.getWidth() + 4,
+                    picker.getY() + picker.getHeight() + 4, 0xFF0B0E12);
+            context.fill(pickerFilter.getX() - 3, pickerFilter.getY() - 3, pickerFilter.getX() + pickerFilter.getWidth() + 3,
+                    picker.getY() + picker.getHeight() + 3, PANEL);
+        }
         super.render(context, mouseX, mouseY, deltaTicks);
         renderOverlays(context, mouseX, mouseY);
     }
@@ -490,6 +544,10 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean doubled) {
+        if (picker != null && !pickerContains(click.x(), click.y())) {
+            closePicker();
+            return true;
+        }
         if (super.mouseClicked(click, doubled)) return true;
         if (toggleBar != null && toggleBar.mouseClicked(click.x(), click.y(), click.button())) return true;
         if (session != null && click.button() == 0 && viewport.contains(click.x(), click.y()) && viewport.lod() < 2) {
@@ -531,6 +589,9 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (picker != null && pickerContains(mouseX, mouseY)) {
+            return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
         if (viewport.contains(mouseX, mouseY) && verticalAmount != 0) {
             viewport.zoomAt(mouseX, mouseY, verticalAmount > 0 ? 0.8 : 1.25);
             return true;
@@ -540,7 +601,12 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyInput input) {
-        if ((seedField == null || !seedField.isFocused()) && SeedScoutClient.OPEN_MAP.matchesKey(input)) {
+        if (picker != null && input.isEscape()) {
+            closePicker();
+            return true;
+        }
+        boolean typing = (seedField != null && seedField.isFocused()) || (pickerFilter != null && pickerFilter.isFocused());
+        if (!typing && SeedScoutClient.OPEN_MAP.matchesKey(input)) {
             close();
             return true;
         }
