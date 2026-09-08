@@ -7,6 +7,7 @@
   "seedscout.screen.search": "Search",
   "seedscout.screen.center": "Center on player",
   "seedscout.screen.clear_waypoint": "Clear waypoint",
+  "seedscout.screen.beam": "Beam",
   "seedscout.screen.no_seed": "Enter a seed above",
   "seedscout.screen.unsupported": "Unsupported world",
   "seedscout.screen.loading": "Loading world generation...",

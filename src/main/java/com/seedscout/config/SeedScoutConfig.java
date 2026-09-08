@@ -23,6 +23,7 @@ public final class SeedScoutConfig {
     public Map<String, String> seeds = new LinkedHashMap<>();
     public List<String> enabledStructures = new ArrayList<>();
     public int lastRadius = 5000;
+    public boolean showBeam = true;
 
     public static SeedScoutConfig defaults() {
         SeedScoutConfig config = new SeedScoutConfig();

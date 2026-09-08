@@ -60,6 +60,7 @@ public class SeedScoutScreen extends Screen {
     private ResultsListWidget resultsList;
     private ButtonWidget centerButton;
     private ButtonWidget clearButton;
+    private CyclingButtonWidget<Boolean> beamButton;
     private static Identifier lastStructure = Identifier.ofVanilla("village_plains");
     private static List<StructureHit> lastResults = List.of();
 
@@ -138,6 +139,7 @@ public class SeedScoutScreen extends Screen {
         if (resultsList != null) remove(resultsList);
         if (centerButton != null) remove(centerButton);
         if (clearButton != null) remove(clearButton);
+        if (beamButton != null) remove(beamButton);
 
         List<Identifier> ids = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
                 .map(SeedWorld::idOf).toList();
@@ -168,7 +170,7 @@ public class SeedScoutScreen extends Screen {
         addDrawableChild(searchButton);
         y += 24;
 
-        resultsList = new ResultsListWidget(client, pw, Math.max(20, height - y - 30), y, this::pickResult);
+        resultsList = new ResultsListWidget(client, pw, Math.max(20, height - y - 54), y, this::pickResult);
         resultsList.setX(px);
         if (searching) {
             resultsList.setStatus(Text.translatable("seedscout.screen.searching"));
@@ -176,6 +178,13 @@ public class SeedScoutScreen extends Screen {
             resultsList.setResults(lastResults);
         }
         addDrawableChild(resultsList);
+
+        beamButton = CyclingButtonWidget.onOffBuilder(config.showBeam)
+                .build(px, height - 50, pw, 20, Text.translatable("seedscout.screen.beam"), (b, v) -> {
+                    config.showBeam = v;
+                    SeedScoutClient.saveConfig();
+                });
+        addDrawableChild(beamButton);
 
         int bottomY = height - 26;
         centerButton = ButtonWidget.builder(

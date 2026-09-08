@@ -34,6 +34,7 @@ public final class BeamRenderer {
     public static void init() {}
 
     public static void render(WorldRenderContext context) {
+        if (!SeedScoutClient.config().showBeam) return;
         Waypoint waypoint = WaypointState.get().orElse(null);
         if (waypoint == null) return;
         MatrixStack matrices = context.matrices();

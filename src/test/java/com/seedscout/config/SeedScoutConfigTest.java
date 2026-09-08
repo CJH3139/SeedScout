@@ -16,11 +16,13 @@ class SeedScoutConfigTest {
         SeedScoutConfig config = SeedScoutConfig.defaults();
         config.putSeed("play.example.net", "123");
         config.lastRadius = 10000;
+        config.showBeam = false;
         config.save(file);
 
         SeedScoutConfig loaded = SeedScoutConfig.load(file);
         assertEquals("123", loaded.seedFor("play.example.net").orElseThrow());
         assertEquals(10000, loaded.lastRadius);
+        assertEquals(false, loaded.showBeam);
         assertEquals(config.enabledStructures, loaded.enabledStructures);
     }
 
