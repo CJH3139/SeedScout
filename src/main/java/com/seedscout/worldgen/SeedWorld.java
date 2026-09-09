@@ -444,7 +444,7 @@ public final class SeedWorld {
     }
 
 
-    private int surfaceHeight(int x, int z) {
+    public int surfaceHeight(int x, int z) {
         return chunkGenerator.getFirstOccupiedHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, heightAccessor, randomState);
     }
 

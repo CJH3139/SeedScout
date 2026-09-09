@@ -23,7 +23,7 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 2. In a world, press `Y` (rebindable in Controls under SeedScout) to open the map.
 3. In singleplayer the seed is read automatically. On a server, type the seed in the field at the top of the side panel and click Apply.
 4. The map opens on your current dimension; switch with the Overworld, Nether, and End tabs. In the structure grid, left-click an icon to show or hide that type on the map and right-click it to make it the search target.
-5. Pick Structures or Biomes, a target and a radius in the right panel, and click Search. Click a result to set a waypoint and close the map, or right-click it to copy its coordinates. Right-click anywhere on the map to drop a marker.
+5. Pick Structures or Biomes, a target and a radius in the right panel, and click Search. Click a result to set a waypoint and close the map, or right-click it to copy its coordinates. Right-click anywhere on the map for a menu: set a waypoint there, copy the coordinates, or teleport (sends a `/tp` command, so it only works where you have permission).
 6. Type coordinates such as `640 816` or `x=640 z=816` into the Go to field and press Enter to jump there. The Biome Y row switches the Overworld map between surface and cave layers.
 7. Follow the arrow. The arrow and beam show only while you are in the target's dimension. Press `Y` again or Escape to close the map at any time. Clear removes the waypoint, Copy puts its coordinates on the clipboard.
 

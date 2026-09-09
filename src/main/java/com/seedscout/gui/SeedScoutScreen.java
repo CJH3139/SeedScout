@@ -78,6 +78,7 @@ public class SeedScoutScreen extends Screen {
     private Button goButton;
     private String flash;
     private long flashUntil;
+    private ContextMenu menu;
     private List<MarkerClusterer.Cluster<RegionHit>> visibleClusters = List.of();
     private StructureGrid grid;
     private Button targetButton;
@@ -311,6 +312,39 @@ public class SeedScoutScreen extends Screen {
     private void showFlash(String text) {
         flash = text;
         flashUntil = System.currentTimeMillis() + FLASH_MILLIS;
+    }
+
+    private void openPointMenu(int screenX, int screenY, int bx, int bz) {
+        MapSession current = session;
+        Component title = Component.literal(bx + ", " + bz);
+        List<ContextMenu.Item> items = new ArrayList<>();
+        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.waypoint"), () -> {
+            String name = Component.translatable("seedscout.waypoint.marker", bx, bz).getString();
+            WaypointState.set(new Waypoint(name, bx, bz, null, current.dimension().levelId()));
+        }));
+        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.copy"), () -> copyCoordinates(bx, bz)));
+        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.teleport"), () -> teleportTo(current, bx, bz)));
+        menu = new ContextMenu(font, screenX, screenY, width, height, title, items);
+    }
+
+    private void teleportTo(MapSession current, int bx, int bz) {
+        if (minecraft.player == null) return;
+        if (Dimension.fromLevel(minecraft.player.level().dimension()) != current.dimension()) {
+            showFlash(Component.translatable("seedscout.menu.teleport_other_dimension", current.dimension().displayName()).getString());
+            return;
+        }
+        if (current.dimension() == Dimension.NETHER) {
+            minecraft.player.connection.sendCommand("spreadplayers " + bx + " " + bz + " 0 1 under 122 false @s");
+        } else {
+            MapWorker.submit(() -> {
+                int y = current.world().surfaceHeight(bx, bz) + 1;
+                minecraft.execute(() -> {
+                    if (minecraft.player == null) return;
+                    minecraft.player.connection.sendCommand("tp @s " + bx + " " + y + " " + bz);
+                });
+            });
+        }
+        onClose();
     }
 
     private void saveToggles() {
@@ -631,6 +665,7 @@ public class SeedScoutScreen extends Screen {
                     picker.getY() + picker.getHeight() + 3, PANEL);
         }
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        if (menu != null) menu.render(context, font, mouseX, mouseY);
     }
 
     private void renderStatus(GuiGraphicsExtractor context, int mouseX, int mouseY) {
@@ -869,6 +904,13 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
+        if (menu != null) {
+            ContextMenu open = menu;
+            boolean inside = open.contains(click.x(), click.y());
+            if (inside) open.mouseClicked(click.x(), click.y(), click.button());
+            if (menu == open) menu = null;
+            return true;
+        }
         if (picker != null && !pickerContains(click.x(), click.y())) {
             closePicker();
             return true;
@@ -900,8 +942,7 @@ public class SeedScoutScreen extends Screen {
         if (click.button() == 1) {
             int bx = (int) Math.floor(viewport.screenToWorldX(click.x()));
             int bz = (int) Math.floor(viewport.screenToWorldZ(click.y()));
-            String name = Component.translatable("seedscout.waypoint.marker", bx, bz).getString();
-            WaypointState.set(new Waypoint(name, bx, bz, null, session.dimension().levelId()));
+            openPointMenu((int) click.x(), (int) click.y(), bx, bz);
             return true;
         }
         if (click.button() == 0) {
@@ -928,6 +969,7 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (menu != null) return true;
         if (picker != null && pickerContains(mouseX, mouseY)) {
             return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
         }
@@ -940,6 +982,10 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent input) {
+        if (menu != null && input.isEscape()) {
+            menu = null;
+            return true;
+        }
         if (picker != null && input.isEscape()) {
             closePicker();
             return true;

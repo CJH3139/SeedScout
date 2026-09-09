@@ -43,5 +43,10 @@
   "seedscout.screen.copy": "Copy",
   "seedscout.screen.copied": "Copied %s",
   "seedscout.screen.result_count": "%s found",
-  "seedscout.screen.modded": "datapack worldgen"
+  "seedscout.screen.modded": "datapack worldgen",
+  "seedscout.menu.waypoint": "Set waypoint",
+  "seedscout.menu.copy": "Copy coordinates",
+  "seedscout.menu.teleport": "Teleport here",
+  "seedscout.menu.teleporting": "Teleporting...",
+  "seedscout.menu.teleport_other_dimension": "Go to the %s first"
 }
