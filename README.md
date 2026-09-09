@@ -8,7 +8,7 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 - Pan and zoom with three levels of detail. Tiles are computed on a background thread and cached.
 - Structure icons for every vanilla structure type in the current dimension, toggleable per type. Toggles are remembered.
 - Search by structure type and radius (2000, 5000, 10000, or 50000 blocks). Results are listed nearest first with coordinates and distance, and highlighted on the map.
-- Click a result or an icon on the map, or right-click anywhere on the map, to set a waypoint. A HUD arrow shows direction and distance, and a colored beam marks the spot through terrain. Waypoints are saved per world; switch between them in the Waypoints tab, right-click one to delete it.
+- Click a result or an icon on the map, or right-click anywhere on the map, to set a waypoint. A HUD arrow shows direction and distance, and a colored beam marks the spot through terrain. The waypoint clears itself when you arrive.
 - Slime chunk overlay and world spawn marker.
 - Works on multiplayer servers: enter the seed once per server and it is remembered.
 
@@ -18,8 +18,8 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2 and put [Fabric API](https://modrinth.com/mod/fabric-api) and the SeedScout jar in your `mods` folder.
 2. In a world, press `Y` (rebindable in Controls under SeedScout) to open the map.
-3. In singleplayer the seed is read automatically. On a server, type the seed in the field at the top and click Apply.
-4. The map opens on your current dimension; use the Overworld, Nether, and End buttons in the top bar to switch. Use the toggles next to them to choose which structure types are drawn.
+3. In singleplayer the seed is read automatically. On a server, type the seed in the field at the top of the side panel and click Apply.
+4. The map opens on your current dimension; switch with the Overworld, Nether, and End tabs. In the structure grid, left-click an icon to show or hide that type on the map and right-click it to make it the search target.
 5. Pick Structures or Biomes, a target and a radius in the right panel, and click Search. Click a result to set a waypoint and close the map. Right-click anywhere on the map to drop a marker.
 6. Follow the arrow. The arrow and beam show only while you are in the target's dimension. Press `Y` again or Escape to close the map at any time. Clear waypoint removes the target.
 

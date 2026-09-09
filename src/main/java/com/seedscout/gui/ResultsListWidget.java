@@ -9,7 +9,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidget.Entry> {
-    private static final int ROW_HEIGHT = 22;
+    private static final int ROW_HEIGHT = 20;
 
     public record Row(String title, String subtitle, Identifier structureId, int color, Runnable onPick, Runnable onSecondary) {}
 
@@ -60,14 +60,14 @@ public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidg
         @Override
         public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
             int x = getX() + 2;
-            int y = getY() + 2;
+            int y = getY() + 1;
             if (row.structureId() != null) {
                 StructureIcons.drawIcon(context, row.structureId(), x, y);
             } else {
                 StructureIcons.drawSwatch(context, row.color(), x, y);
             }
-            context.text(minecraft.font, row.title(), x + 20, y, hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
-            context.text(minecraft.font, row.subtitle(), x + 20, y + 10, 0xFFAAAAAA);
+            context.text(minecraft.font, row.title(), x + 20, y + 1, hovered ? 0xFFFFFFFF : 0xFFE0E0E0, false);
+            context.text(minecraft.font, row.subtitle(), x + 20, y + 10, 0xFF8FA1B3, false);
         }
 
         @Override
