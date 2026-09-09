@@ -43,12 +43,15 @@ class TileStoreTest {
         TileStore a = new TileStore(dir, "26.2", "overworld", 1L);
         TileStore b = new TileStore(dir, "26.2", "overworld", 2L);
         TileStore c = new TileStore(dir, "26.2", "nether", 1L);
+        TileStore d = new TileStore(dir, "26.2", "overworld", 1L, "vanilla-y0");
         TileKey key = new TileKey(0, 0, 0);
         int[] pixels = new int[TileKey.TILE_PIXELS * TileKey.TILE_PIXELS];
         a.save(key, pixels);
         assertTrue(a.load(key).isPresent());
         assertTrue(b.load(key).isEmpty());
         assertTrue(c.load(key).isEmpty());
+        assertTrue(d.load(key).isEmpty());
+        assertTrue(new TileStore(dir, "26.2", "overworld", 1L, "default").load(key).isPresent());
     }
 
     @Test

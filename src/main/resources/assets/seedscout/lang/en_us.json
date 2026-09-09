@@ -34,5 +34,14 @@
   "seedscout.screen.grid_hint": "Left: toggle   Right: search target",
   "seedscout.screen.radius_short": "%sk",
   "seedscout.screen.status": "X %s  Z %s   zoom %s",
-  "seedscout.screen.pending": "%s tiles loading"
+  "seedscout.screen.pending": "%s tiles loading",
+  "seedscout.screen.goto": "Go to X, Z",
+  "seedscout.screen.go": "Go",
+  "seedscout.screen.biome_y": "Biome Y",
+  "seedscout.screen.grid": "Grid",
+  "seedscout.screen.facing": "Facing",
+  "seedscout.screen.copy": "Copy",
+  "seedscout.screen.copied": "Copied %s",
+  "seedscout.screen.result_count": "%s found",
+  "seedscout.screen.modded": "datapack worldgen"
 }

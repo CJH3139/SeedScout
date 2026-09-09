@@ -26,6 +26,9 @@ public final class SeedScoutConfig {
     public boolean showBeam = true;
     public boolean showSlimeChunks = false;
     public boolean diskCache = true;
+    public boolean showGrid = false;
+    public boolean showFacing = true;
+    public int biomeY = 64;
 
     public static SeedScoutConfig defaults() {
         SeedScoutConfig config = new SeedScoutConfig();

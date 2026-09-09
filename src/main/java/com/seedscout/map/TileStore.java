@@ -23,7 +23,12 @@ public final class TileStore {
     private final Path root;
 
     public TileStore(Path cacheRoot, String versionTag, String dimension, long seed) {
-        this.root = cacheRoot.resolve("v" + FORMAT + "-" + sanitize(versionTag)).resolve(dimension).resolve(Long.toString(seed));
+        this(cacheRoot, versionTag, dimension, seed, "default");
+    }
+
+    public TileStore(Path cacheRoot, String versionTag, String dimension, long seed, String layer) {
+        this.root = cacheRoot.resolve("v" + FORMAT + "-" + sanitize(versionTag)).resolve(dimension)
+                .resolve(Long.toString(seed)).resolve(sanitize(layer));
     }
 
     private static String sanitize(String s) {

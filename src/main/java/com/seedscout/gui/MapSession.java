@@ -5,33 +5,50 @@ import com.seedscout.map.MapWorker;
 import com.seedscout.map.StructureIndex;
 import com.seedscout.map.TileCache;
 import com.seedscout.map.TilePixels;
+import com.seedscout.map.TileStore;
 import com.seedscout.worldgen.BiomeColors;
 import com.seedscout.worldgen.Dimension;
 import com.seedscout.worldgen.SeedWorld;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 
 public final class MapSession {
+    private static final long CACHE_MAX_BYTES = 512L * 1024 * 1024;
+    private static final long CACHE_TARGET_BYTES = 384L * 1024 * 1024;
+    private static boolean pruned;
+
     private final SeedWorld world;
-    private final TileCache tiles;
+    private final TextureManager textureManager;
     private final StructureIndex structures;
     private final TilePixels.ColorSampler biomeColors;
     private final List<Holder<StructureSet>> sets;
     private final Set<Identifier> enabledStructures = new HashSet<>();
+    private final Map<Long, Boolean> slimeCache = new HashMap<>();
+    private TileCache tiles;
+    private volatile int biomeY;
 
-    private MapSession(SeedWorld world, TextureManager textureManager) {
+    private MapSession(SeedWorld world, TextureManager textureManager, int biomeY) {
         this.world = world;
-        this.tiles = new TileCache(textureManager, SeedScoutClient.config().diskCache ? openStore(world) : null);
-        this.biomeColors = (x, z) -> BiomeColors.colorOf(SeedWorld.idOf(world.biomeAt(x, z)));
+        this.textureManager = textureManager;
+        this.biomeY = world.dimension() == Dimension.OVERWORLD ? biomeY : SeedWorld.SURFACE_Y;
+        this.tiles = openTiles();
+        this.biomeColors = (x, z) -> BiomeColors.colorOf(SeedWorld.idOf(world.biomeAt(x, this.biomeY, z)));
         this.sets = world.allStructureSets();
         for (String id : SeedScoutClient.config().enabledStructures) {
             enabledStructures.add(Identifier.parse(id));
@@ -58,24 +75,37 @@ public final class MapSession {
                 client::execute);
     }
 
-    private static final long CACHE_MAX_BYTES = 512L * 1024 * 1024;
-    private static final long CACHE_TARGET_BYTES = 384L * 1024 * 1024;
-    private static boolean pruned;
-
-    private static java.nio.file.Path cacheRoot() {
-        return net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("tiles");
+    public static MapSession open(long seed, Dimension dimension, TextureManager textureManager, MinecraftServer server) {
+        int biomeY = SeedScoutClient.config().biomeY;
+        if (server != null) {
+            try {
+                return new MapSession(SeedWorld.fromServer(server, dimension), textureManager, biomeY);
+            } catch (RuntimeException e) {
+                SeedScoutClient.LOGGER.warn("Falling back to vanilla generation for {}: {}", dimension.levelId(), e.toString());
+            }
+        }
+        return new MapSession(SeedWorld.create(seed, dimension), textureManager, biomeY);
     }
 
-    private static com.seedscout.map.TileStore openStore(SeedWorld world) {
-        java.nio.file.Path rootDir = cacheRoot();
+    private static Path cacheRoot() {
+        return FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("tiles");
+    }
+
+    private TileCache openTiles() {
+        if (!SeedScoutClient.config().diskCache) {
+            return new TileCache(textureManager, null);
+        }
+        Path rootDir = cacheRoot();
         synchronized (MapSession.class) {
             if (!pruned) {
                 pruned = true;
-                com.seedscout.map.TileStore.prune(rootDir, CACHE_MAX_BYTES, CACHE_TARGET_BYTES);
+                TileStore.prune(rootDir, CACHE_MAX_BYTES, CACHE_TARGET_BYTES);
             }
         }
-        String version = net.minecraft.SharedConstants.getCurrentVersion().name();
-        return new com.seedscout.map.TileStore(rootDir, version, world.dimension().name().toLowerCase(java.util.Locale.ROOT), world.seed());
+        String version = SharedConstants.getCurrentVersion().name();
+        String layer = world.profile() + "-y" + biomeY;
+        TileStore store = new TileStore(rootDir, version, world.dimension().name().toLowerCase(Locale.ROOT), world.seed(), layer);
+        return new TileCache(textureManager, store);
     }
 
     private Holder<StructureSet> setById(Identifier id) {
@@ -85,18 +115,21 @@ public final class MapSession {
         throw new IllegalArgumentException("Unknown structure set " + id);
     }
 
-    public static MapSession open(long seed, Dimension dimension, TextureManager textureManager) {
-        return new MapSession(SeedWorld.create(seed, dimension), textureManager);
-    }
-
     public SeedWorld world() { return world; }
     public TileCache tiles() { return tiles; }
     public StructureIndex structures() { return structures; }
     public TilePixels.ColorSampler biomeColors() { return biomeColors; }
     public long seed() { return world.seed(); }
     public Dimension dimension() { return world.dimension(); }
+    public int biomeY() { return biomeY; }
+    public Set<Identifier> enabledStructures() { return enabledStructures; }
 
-    private final java.util.Map<Long, Boolean> slimeCache = new java.util.HashMap<>();
+    public void setBiomeY(int y) {
+        if (y == biomeY || world.dimension() != Dimension.OVERWORLD) return;
+        tiles.clear();
+        biomeY = y;
+        tiles = openTiles();
+    }
 
     public boolean isSlimeChunk(int chunkX, int chunkZ) {
         long key = (((long) chunkX) << 32) ^ (chunkZ & 0xFFFFFFFFL);
@@ -107,7 +140,6 @@ public final class MapSession {
         }
         return cached;
     }
-    public Set<Identifier> enabledStructures() { return enabledStructures; }
 
     public void close() {
         tiles.clear();

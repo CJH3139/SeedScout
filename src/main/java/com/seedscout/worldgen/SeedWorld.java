@@ -17,6 +17,9 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.resources.RegistryValidator;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerChunkCache;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.ServerPacksSource;
@@ -69,12 +72,15 @@ public final class SeedWorld {
     private static final long SLIME_SALT = 987234911L;
 
     public static final int MAX_SEARCH_REGIONS = 20000;
+    public static final int SURFACE_Y = 64;
+    public static final String VANILLA_PROFILE = "vanilla";
 
     private static final Field JIGSAW_START_HEIGHT = field(JigsawStructure.class, "startHeight");
     private static final Field JIGSAW_PROJECTION = field(JigsawStructure.class, "projectStartToHeightmap");
 
     private final long seed;
     private final Dimension dimension;
+    private final String profile;
     private final BiomeSource biomeSource;
     private final Climate.Sampler sampler;
     private final RandomState randomState;
@@ -132,21 +138,53 @@ public final class SeedWorld {
         }
     }
 
+    public static SeedWorld fromServer(MinecraftServer server, Dimension dimension) {
+        ServerLevel level = server.getLevel(dimension.levelKey());
+        if (level == null) {
+            throw new IllegalStateException("Server has no level " + dimension.levelId());
+        }
+        ServerChunkCache chunks = level.getChunkSource();
+        if (!(chunks.getGenerator() instanceof NoiseBasedChunkGenerator generator)) {
+            throw new IllegalStateException("Level " + dimension.levelId() + " does not use noise generation");
+        }
+        return new SeedWorld(level.getSeed(), dimension, server.registryAccess(), generator,
+                chunks.randomState(), chunks.getGeneratorState(), profileOf(server));
+    }
+
+    public static String profileOf(MinecraftServer server) {
+        List<String> packs = new ArrayList<>(server.getPackRepository().getSelectedIds());
+        packs.remove("vanilla");
+        packs.removeIf(id -> id.startsWith("fabric"));
+        if (packs.isEmpty()) {
+            return VANILLA_PROFILE;
+        }
+        java.util.Collections.sort(packs);
+        return "packs-" + Integer.toHexString(String.join("|", packs).hashCode());
+    }
+
     SeedWorld(long seed, Dimension dimension, HolderLookup.Provider lookup) {
+        this(seed, dimension, lookup, null, null, null, VANILLA_PROFILE);
+    }
+
+    private SeedWorld(long seed, Dimension dimension, HolderLookup.Provider lookup, NoiseBasedChunkGenerator generator,
+                      RandomState randomState, ChunkGeneratorStructureState calculator, String profile) {
         this.seed = seed;
         this.dimension = dimension;
-        Holder<NoiseGeneratorSettings> settingsHolder = lookup.lookupOrThrow(Registries.NOISE_SETTINGS)
-                .getOrThrow(dimension.noiseSettings());
+        this.profile = profile;
+        Holder<NoiseGeneratorSettings> settingsHolder = generator != null ? generator.generatorSettings()
+                : lookup.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(dimension.noiseSettings());
         NoiseGeneratorSettings settings = settingsHolder.value();
-        this.randomState = RandomState.create(settings, lookup.lookupOrThrow(Registries.NOISE), seed);
-        this.sampler = randomState.sampler();
-        this.biomeSource = dimension.createBiomeSource(lookup);
-        this.chunkGenerator = new NoiseBasedChunkGenerator(biomeSource, settingsHolder);
+        this.randomState = randomState != null ? randomState
+                : RandomState.create(settings, lookup.lookupOrThrow(Registries.NOISE), seed);
+        this.sampler = this.randomState.sampler();
+        this.biomeSource = generator != null ? generator.getBiomeSource() : dimension.createBiomeSource(lookup);
+        this.chunkGenerator = generator != null ? generator : new NoiseBasedChunkGenerator(biomeSource, settingsHolder);
         this.heightAccessor = LevelHeightAccessor.create(settings.noiseSettings().minY(), settings.noiseSettings().height());
 
         HolderLookup.RegistryLookup<StructureSet> setRegistry = lookup.lookupOrThrow(Registries.STRUCTURE_SET);
-        this.calculator = ChunkGeneratorStructureState.createForNormal(randomState, seed, biomeSource, setRegistry);
-        this.structureSets = List.copyOf(calculator.possibleStructureSets());
+        this.calculator = calculator != null ? calculator
+                : ChunkGeneratorStructureState.createForNormal(this.randomState, seed, biomeSource, setRegistry);
+        this.structureSets = List.copyOf(this.calculator.possibleStructureSets());
         this.structureRegistry = lookup.lookupOrThrow(Registries.STRUCTURE);
         this.biomeRegistry = lookup.lookupOrThrow(Registries.BIOME);
         Set<Holder<Structure>> present = new LinkedHashSet<>();
@@ -171,8 +209,20 @@ public final class SeedWorld {
         return dimension;
     }
 
+    public String profile() {
+        return profile;
+    }
+
+    public boolean isVanilla() {
+        return VANILLA_PROFILE.equals(profile);
+    }
+
     public Holder<Biome> biomeAt(int blockX, int blockZ) {
         return biomeSource.getNoiseBiome(blockX >> 2, SAMPLE_QUART_Y, blockZ >> 2, sampler);
+    }
+
+    public Holder<Biome> biomeAt(int blockX, int blockY, int blockZ) {
+        return biomeSource.getNoiseBiome(blockX >> 2, blockY >> 2, blockZ >> 2, sampler);
     }
 
     public List<Holder<Structure>> allStructures() {
@@ -444,21 +494,25 @@ public final class SeedWorld {
     }
 
     public List<BiomeHit> findBiome(Holder<Biome> target, int centerX, int centerZ, int radiusBlocks, int maxResults) {
+        return findBiome(target, centerX, centerZ, radiusBlocks, maxResults, SURFACE_Y);
+    }
+
+    public List<BiomeHit> findBiome(Holder<Biome> target, int centerX, int centerZ, int radiusBlocks, int maxResults, int y) {
         int step = Math.max(16, radiusBlocks / 160);
         int clusterDistance = Math.max(256, step * 8);
         Identifier targetId = idOf(target);
         List<BiomeHit> hits = new ArrayList<>();
         for (int r = 0; r <= radiusBlocks; r += step) {
             if (r == 0) {
-                sampleBiome(targetId, centerX, centerZ, centerX, centerZ, clusterDistance, hits);
+                sampleBiome(targetId, centerX, y, centerZ, centerX, centerZ, clusterDistance, hits);
             } else {
                 for (int d = -r; d <= r; d += step) {
-                    sampleBiome(targetId, centerX + d, centerZ - r, centerX, centerZ, clusterDistance, hits);
-                    sampleBiome(targetId, centerX + d, centerZ + r, centerX, centerZ, clusterDistance, hits);
+                    sampleBiome(targetId, centerX + d, y, centerZ - r, centerX, centerZ, clusterDistance, hits);
+                    sampleBiome(targetId, centerX + d, y, centerZ + r, centerX, centerZ, clusterDistance, hits);
                 }
                 for (int d = -r + step; d <= r - step; d += step) {
-                    sampleBiome(targetId, centerX - r, centerZ + d, centerX, centerZ, clusterDistance, hits);
-                    sampleBiome(targetId, centerX + r, centerZ + d, centerX, centerZ, clusterDistance, hits);
+                    sampleBiome(targetId, centerX - r, y, centerZ + d, centerX, centerZ, clusterDistance, hits);
+                    sampleBiome(targetId, centerX + r, y, centerZ + d, centerX, centerZ, clusterDistance, hits);
                 }
             }
             if (hits.size() >= maxResults * 2) break;
@@ -469,8 +523,8 @@ public final class SeedWorld {
                 .toList();
     }
 
-    private void sampleBiome(Identifier targetId, int x, int z, int centerX, int centerZ, int clusterDistance, List<BiomeHit> hits) {
-        Holder<Biome> found = biomeAt(x, z);
+    private void sampleBiome(Identifier targetId, int x, int y, int z, int centerX, int centerZ, int clusterDistance, List<BiomeHit> hits) {
+        Holder<Biome> found = biomeAt(x, y, z);
         if (!idOf(found).equals(targetId)) return;
         for (BiomeHit existing : hits) {
             if (Math.abs(existing.blockX() - x) <= clusterDistance && Math.abs(existing.blockZ() - z) <= clusterDistance) {

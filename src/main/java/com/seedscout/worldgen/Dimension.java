@@ -37,6 +37,10 @@ public enum Dimension {
         return level.identifier();
     }
 
+    public ResourceKey<Level> levelKey() {
+        return level;
+    }
+
     public Component displayName() {
         return Component.translatable("seedscout.dimension." + key);
     }

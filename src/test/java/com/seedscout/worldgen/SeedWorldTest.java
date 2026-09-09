@@ -47,6 +47,26 @@ class SeedWorldTest {
     }
 
     @Test
+    void deepSamplingFindsCaveBiomesThatTheSurfaceLayerHides() {
+        int caveDeep = 0;
+        int caveSurface = 0;
+        for (int x = -4096; x <= 4096; x += 128) {
+            for (int z = -4096; z <= 4096; z += 128) {
+                if (isCave(world.biomeAt(x, -50, z))) caveDeep++;
+                if (isCave(world.biomeAt(x, z))) caveSurface++;
+            }
+        }
+        assertTrue(caveDeep > 50, "cave biomes at y -50: " + caveDeep);
+        assertTrue(caveDeep > caveSurface * 2, "deep " + caveDeep + " vs surface " + caveSurface);
+        assertTrue(world.isVanilla());
+    }
+
+    private static boolean isCave(Holder<?> biome) {
+        String path = SeedWorld.idOf(biome).getPath();
+        return path.equals("dripstone_caves") || path.equals("lush_caves") || path.equals("deep_dark");
+    }
+
+    @Test
     void listsVanillaStructures() {
         List<String> ids = world.allStructures().stream().map(e -> SeedWorld.idOf(e).toString()).toList();
         assertTrue(ids.contains("minecraft:village_plains"));
