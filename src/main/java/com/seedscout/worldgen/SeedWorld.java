@@ -73,6 +73,7 @@ public final class SeedWorld {
 
     public static final int MAX_SEARCH_REGIONS = 20000;
     public static final int SURFACE_Y = 64;
+    public static final int MAX_FEATURE_CHUNKS = 250000;
     public static final String VANILLA_PROFILE = "vanilla";
 
     private static final Field JIGSAW_START_HEIGHT = field(JigsawStructure.class, "startHeight");
@@ -92,6 +93,7 @@ public final class SeedWorld {
     private final List<Holder<StructureSet>> structureSets;
     private final List<Holder<Structure>> structures;
     private final List<Holder<Biome>> biomes;
+    private final FeatureFinder features;
     private final java.util.concurrent.ConcurrentHashMap<Long, Boolean> terrainCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static SeedWorld create(long seed) {
@@ -199,6 +201,54 @@ public final class SeedWorld {
         this.biomes = biomeSource.possibleBiomes().stream()
                 .sorted(Comparator.comparing(e -> idOf(e).getPath()))
                 .toList();
+        FeatureFinder finder;
+        try {
+            finder = new FeatureFinder(seed, chunkGenerator, biomeSource, sampler, heightAccessor, lookup);
+        } catch (RuntimeException e) {
+            finder = null;
+        }
+        this.features = finder;
+    }
+
+    public List<Identifier> featureIds() {
+        return features == null ? List.of() : features.available();
+    }
+
+    public boolean isFeature(Identifier id) {
+        return features != null && features.supports(id);
+    }
+
+    public List<FeatureFinder.FeatureHit> featuresInChunk(Identifier featureId, int chunkX, int chunkZ) {
+        return features == null ? List.of() : features.inChunk(featureId, chunkX, chunkZ);
+    }
+
+    public List<FeatureFinder.FeatureHit> findFeatures(Identifier featureId, int centerX, int centerZ, int radiusBlocks, int maxResults) {
+        if (!isFeature(featureId)) return List.of();
+        int centerChunkX = centerX >> 4;
+        int centerChunkZ = centerZ >> 4;
+        int radiusChunks = Math.max(1, radiusBlocks >> 4);
+        List<FeatureFinder.FeatureHit> hits = new ArrayList<>();
+        int scanned = 0;
+        for (int r = 0; r <= radiusChunks && scanned < MAX_FEATURE_CHUNKS; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    scanned++;
+                    hits.addAll(features.inChunk(featureId, centerChunkX + dx, centerChunkZ + dz));
+                }
+            }
+            if (hits.size() >= maxResults * 2) break;
+        }
+        return hits.stream()
+                .sorted(Comparator.comparingDouble(h -> distanceSq(h.blockX(), h.blockZ(), centerX, centerZ)))
+                .limit(maxResults)
+                .toList();
+    }
+
+    private static double distanceSq(int x, int z, int cx, int cz) {
+        double dx = x - cx;
+        double dz = z - cz;
+        return dx * dx + dz * dz;
     }
 
     public long seed() {

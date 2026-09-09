@@ -4,10 +4,18 @@ import com.seedscout.SeedScoutClient;
 import com.seedscout.config.SeedParser;
 import com.seedscout.config.SeedScoutConfig;
 import com.seedscout.map.CoordinateParser;
+import com.seedscout.map.MapExporter;
+import com.seedscout.map.MapMarker;
 import com.seedscout.map.MapViewport;
 import com.seedscout.map.MapWorker;
 import com.seedscout.map.MarkerClusterer;
 import com.seedscout.map.TileKey;
+import com.seedscout.waypoint.ShareHandler;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Set;
+import net.fabricmc.loader.api.FabricLoader;
 import com.seedscout.worldgen.Dimension;
 import com.seedscout.worldgen.RegionHit;
 import com.seedscout.worldgen.SeedSource;
@@ -53,6 +61,7 @@ public class SeedScoutScreen extends Screen {
     private static final int REGION_LINE = 0x70FFFFFF;
     private static final int FACING_LINE = 0x90FFFFFF;
     private static final long FLASH_MILLIS = 2500;
+    private static final double FEATURE_MAX_SCALE = 4.0;
 
     protected static MapSession session;
     private static boolean sessionLoading;
@@ -79,7 +88,15 @@ public class SeedScoutScreen extends Screen {
     private String flash;
     private long flashUntil;
     private ContextMenu menu;
-    private List<MarkerClusterer.Cluster<RegionHit>> visibleClusters = List.of();
+    private List<MarkerClusterer.Cluster<MapMarker>> visibleClusters = List.of();
+    private int lastMouseX;
+    private int lastMouseY;
+    private boolean measuring;
+    private double measureStartX;
+    private double measureStartZ;
+    private double measureEndX;
+    private double measureEndZ;
+    private boolean hasMeasurement;
     private StructureGrid grid;
     private Button targetButton;
     private StructurePickerWidget picker;
@@ -190,8 +207,14 @@ public class SeedScoutScreen extends Screen {
         }
         y += 4;
 
-        List<Identifier> structureIds = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
-                .map(SeedWorld::idOf).toList();
+        List<Identifier> structureIds;
+        if (session == null) {
+            structureIds = List.of(lastStructure);
+        } else {
+            List<Identifier> ids = new ArrayList<>(session.world().allStructures().stream().map(SeedWorld::idOf).toList());
+            ids.addAll(session.featureIds());
+            structureIds = List.copyOf(ids);
+        }
         if (!structureIds.contains(lastStructure)) lastStructure = structureIds.get(0);
         List<Identifier> biomeIds = session == null ? List.of(lastBiome) : session.world().allBiomes().stream()
                 .map(SeedWorld::idOf).toList();
@@ -276,7 +299,34 @@ public class SeedScoutScreen extends Screen {
         controls.add(new SegmentedControl(px, actionRow, pw, SEG_H, List.of(
                 SegmentedControl.Segment.of(Component.translatable("seedscout.screen.center"), () -> false, this::centerOnPlayer),
                 SegmentedControl.Segment.of(Component.translatable("seedscout.screen.copy"), () -> false, this::copyWaypoint),
+                SegmentedControl.Segment.of(Component.translatable("seedscout.screen.export"), () -> false, this::exportMap),
                 SegmentedControl.Segment.of(Component.translatable("seedscout.screen.clear_waypoint"), () -> false, WaypointState::clear))));
+    }
+
+    private void exportMap() {
+        if (session == null) return;
+        List<MapExporter.Dot> dots = new ArrayList<>();
+        for (MarkerClusterer.Cluster<MapMarker> cluster : visibleClusters) {
+            for (MapMarker marker : cluster.members()) {
+                dots.add(new MapExporter.Dot(marker.blockX(), marker.blockZ(), StructureIcons.colorFor(marker.id()), 2));
+            }
+        }
+        for (SearchResult r : lastResults) {
+            dots.add(new MapExporter.Dot(r.x(), r.z(), 0xFFFFD700, 3));
+        }
+        WaypointState.get().filter(wp -> wp.dimension().equals(session.dimension().levelId()))
+                .ifPresent(wp -> dots.add(new MapExporter.Dot(wp.x(), wp.z(), 0xFFFF4040, 3)));
+        Path dir = FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("exports");
+        String base = "seedscout_" + session.seed() + "_" + session.dimension().name().toLowerCase(Locale.ROOT)
+                + "_" + (int) Math.floor(viewport.centerX) + "_" + (int) Math.floor(viewport.centerZ);
+        try {
+            Path file = MapExporter.export(viewport, session.tiles()::textureFor, minecraft.getTextureManager()::getTexture, dots, dir, base);
+            showFlash(Component.translatable("seedscout.screen.exported", file.getFileName().toString()).getString());
+            SeedScoutClient.LOGGER.info("Exported map to {}", file);
+        } catch (IOException e) {
+            SeedScoutClient.LOGGER.error("Map export failed", e);
+            showFlash(Component.translatable("seedscout.screen.export_failed").getString());
+        }
     }
 
     private void setBiomeY(int y) {
@@ -315,14 +365,22 @@ public class SeedScoutScreen extends Screen {
     }
 
     private void openPointMenu(int screenX, int screenY, int bx, int bz) {
+        openPointMenu(screenX, screenY, bx, bz, null, null);
+    }
+
+    private void openPointMenu(int screenX, int screenY, int bx, int bz, String label, Identifier structureId) {
         MapSession current = session;
-        Component title = Component.literal(bx + ", " + bz);
+        if (current == null) return;
+        String name = label != null ? label : Component.translatable("seedscout.waypoint.marker", bx, bz).getString();
+        Component title = Component.literal(label != null ? label + "  " + bx + ", " + bz : bx + ", " + bz);
         List<ContextMenu.Item> items = new ArrayList<>();
-        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.waypoint"), () -> {
-            String name = Component.translatable("seedscout.waypoint.marker", bx, bz).getString();
-            WaypointState.set(new Waypoint(name, bx, bz, null, current.dimension().levelId()));
-        }));
+        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.waypoint"),
+                () -> WaypointState.set(new Waypoint(name, bx, bz, structureId, current.dimension().levelId()))));
         items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.copy"), () -> copyCoordinates(bx, bz)));
+        items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.share"), () -> {
+            ShareHandler.share(minecraft, name, bx, bz, current.dimension().levelId());
+            showFlash(Component.translatable("seedscout.menu.shared").getString());
+        }));
         items.add(new ContextMenu.Item(Component.translatable("seedscout.menu.teleport"), () -> teleportTo(current, bx, bz)));
         menu = new ContextMenu(font, screenX, screenY, width, height, title, items);
     }
@@ -370,7 +428,7 @@ public class SeedScoutScreen extends Screen {
         for (SearchResult r : lastResults) {
             String sub = r.x() + ", " + r.z() + "   " + Math.round(r.distance()) + " m";
             rows.add(new ResultsListWidget.Row(r.name(), sub, r.structureId(), r.color(), () -> pickResult(r),
-                    () -> copyCoordinates(r.x(), r.z())));
+                    () -> openPointMenu(lastMouseX, lastMouseY, r.x(), r.z(), r.name(), r.structureId())));
         }
         resultsList.setRows(rows, Component.translatable("seedscout.screen.no_results"));
     }
@@ -446,6 +504,9 @@ public class SeedScoutScreen extends Screen {
                 if (biomes) {
                     results = current.world().findBiome(current.world().biome(targetId), cx, cz, radiusBlocks, 20, current.biomeY())
                             .stream().map(SearchResult::of).toList();
+                } else if (current.world().isFeature(targetId)) {
+                    results = current.world().findFeatures(targetId, cx, cz, radiusBlocks, 20)
+                            .stream().map(hit -> SearchResult.of(hit, cx, cz)).toList();
                 } else {
                     results = current.world().findStructures(current.world().structure(targetId), center, radiusBlocks / 16, 20)
                             .stream().map(SearchResult::of).toList();
@@ -629,8 +690,11 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
         renderMap(context);
         renderStructureIcons(context);
+        renderMeasurement(context);
         renderMapOverlays(context, mouseX, mouseY);
         int px = panelX();
         int pw = panelW();
@@ -665,7 +729,91 @@ public class SeedScoutScreen extends Screen {
                     picker.getY() + picker.getHeight() + 3, PANEL);
         }
         super.extractRenderState(context, mouseX, mouseY, deltaTicks);
+        if (menu == null && picker == null) renderHover(context, mouseX, mouseY);
         if (menu != null) menu.render(context, font, mouseX, mouseY);
+    }
+
+    private void renderHover(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        if (session == null || !viewport.contains(mouseX, mouseY) || dragging || measuring) return;
+        int bx = (int) Math.floor(viewport.screenToWorldX(mouseX));
+        int bz = (int) Math.floor(viewport.screenToWorldZ(mouseY));
+        List<String> lines = new ArrayList<>();
+        MarkerClusterer.Cluster<MapMarker> hovered = clusterAt(mouseX, mouseY);
+        if (hovered != null) {
+            if (hovered.size() == 1) {
+                MapMarker m = hovered.members().get(0);
+                String name = StructureIcons.displayName(m.id());
+                if (m.blockY() != null) name += "  y " + m.blockY();
+                lines.add(name);
+                lines.add(m.blockX() + ", " + m.blockZ());
+            } else {
+                java.util.Map<Identifier, Integer> counts = new java.util.LinkedHashMap<>();
+                for (MapMarker m : hovered.members()) counts.merge(m.id(), 1, Integer::sum);
+                int shown = 0;
+                for (var e : counts.entrySet()) {
+                    if (shown++ == 4) {
+                        lines.add("...");
+                        break;
+                    }
+                    lines.add(e.getValue() + " x " + StructureIcons.displayName(e.getKey()));
+                }
+                lines.add(Component.translatable("seedscout.screen.click_zoom").getString());
+            }
+        } else {
+            Identifier biome = SeedWorld.idOf(session.world().biomeAt(bx, session.biomeY(), bz));
+            lines.add(StructureIcons.displayName(biome));
+            lines.add(bx + ", " + bz);
+        }
+        int w = 0;
+        for (String line : lines) w = Math.max(w, font.width(line));
+        w += 6;
+        int h = lines.size() * 10 + 4;
+        int x = mouseX + 12;
+        int y = mouseY + 12;
+        if (x + w > viewport.left + viewport.width) x = mouseX - w - 4;
+        if (y + h > viewport.top + viewport.height) y = mouseY - h - 4;
+        context.fill(x - 1, y - 1, x + w + 1, y + h + 1, PANEL_EDGE);
+        context.fill(x, y, x + w, y + h, 0xF01E242B);
+        for (int i = 0; i < lines.size(); i++) {
+            context.text(font, lines.get(i), x + 3, y + 3 + i * 10, i == 0 ? TEXT : MUTED, false);
+        }
+    }
+
+    private MarkerClusterer.Cluster<MapMarker> clusterAt(double mx, double my) {
+        boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;
+        double hitRadius = dots ? 5 : 8;
+        for (MarkerClusterer.Cluster<MapMarker> cluster : visibleClusters) {
+            if (Math.abs(mx - cluster.x()) <= hitRadius && Math.abs(my - cluster.y()) <= hitRadius) return cluster;
+        }
+        return null;
+    }
+
+    private void renderMeasurement(GuiGraphicsExtractor context) {
+        if (!hasMeasurement) return;
+        double sx = viewport.worldToScreenX(measureStartX);
+        double sy = viewport.worldToScreenZ(measureStartZ);
+        double ex = viewport.worldToScreenX(measureEndX);
+        double ey = viewport.worldToScreenZ(measureEndZ);
+        double length = Math.hypot(ex - sx, ey - sy);
+        context.enableScissor(viewport.left, viewport.top, viewport.left + viewport.width, viewport.top + viewport.height);
+        var matrices = context.pose();
+        matrices.pushMatrix();
+        matrices.translate((float) sx, (float) sy);
+        matrices.rotate((float) Math.atan2(ey - sy, ex - sx));
+        context.fill(0, -1, (int) Math.round(length), 1, 0xFFFFD700);
+        matrices.popMatrix();
+        context.fill((int) sx - 2, (int) sy - 2, (int) sx + 2, (int) sy + 2, 0xFFFFD700);
+        context.fill((int) ex - 2, (int) ey - 2, (int) ex + 2, (int) ey + 2, 0xFFFFD700);
+        double dx = measureEndX - measureStartX;
+        double dz = measureEndZ - measureStartZ;
+        String label = Component.translatable("seedscout.screen.measure", Math.round(Math.hypot(dx, dz)),
+                Math.round(dx), Math.round(dz)).getString();
+        int w = font.width(label) + 6;
+        int lx = (int) ((sx + ex) / 2 - w / 2.0);
+        int ly = (int) ((sy + ey) / 2) - 14;
+        context.fill(lx, ly, lx + w, ly + 12, 0xE0101418);
+        context.text(font, label, lx + 3, ly + 2, 0xFFFFD700, false);
+        context.disableScissor();
     }
 
     private void renderStatus(GuiGraphicsExtractor context, int mouseX, int mouseY) {
@@ -791,16 +939,27 @@ public class SeedScoutScreen extends Screen {
         List<RegionHit> hits = session.structures().query(
                 viewport.minBlockX(), viewport.minBlockZ(), viewport.maxBlockX(), viewport.maxBlockZ(),
                 session.enabledStructures());
+        List<MapMarker> markers = new ArrayList<>(hits.size());
+        for (RegionHit hit : hits) markers.add(MapMarker.of(hit));
+        if (viewport.scale <= FEATURE_MAX_SCALE) {
+            Set<Identifier> features = session.enabledFeatures();
+            if (!features.isEmpty()) {
+                for (var hit : session.features().query(viewport.minBlockX(), viewport.minBlockZ(),
+                        viewport.maxBlockX(), viewport.maxBlockZ(), features)) {
+                    markers.add(MapMarker.of(hit));
+                }
+            }
+        }
         context.enableScissor(viewport.left, viewport.top, viewport.left + viewport.width, viewport.top + viewport.height);
         boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;
-        visibleClusters = MarkerClusterer.cluster(hits,
-                hit -> viewport.worldToScreenX(hit.blockX()),
-                hit -> viewport.worldToScreenZ(hit.blockZ()),
+        visibleClusters = MarkerClusterer.cluster(markers,
+                m -> viewport.worldToScreenX(m.blockX()),
+                m -> viewport.worldToScreenZ(m.blockZ()),
                 dots ? DOT_CLUSTER_RADIUS : ICON_CLUSTER_RADIUS);
-        for (MarkerClusterer.Cluster<RegionHit> cluster : visibleClusters) {
+        for (MarkerClusterer.Cluster<MapMarker> cluster : visibleClusters) {
             int sx = (int) Math.round(cluster.x());
             int sy = (int) Math.round(cluster.y());
-            Identifier id = SeedWorld.idOf(dominant(cluster).structure());
+            Identifier id = dominant(cluster).id();
             if (dots) {
                 int r = cluster.size() > 1 ? 3 : 2;
                 context.fill(sx - r, sy - r, sx + r, sy + r, StructureIcons.colorFor(id));
@@ -866,17 +1025,16 @@ public class SeedScoutScreen extends Screen {
         context.disableScissor();
     }
 
-    private static RegionHit dominant(MarkerClusterer.Cluster<RegionHit> cluster) {
+    private static MapMarker dominant(MarkerClusterer.Cluster<MapMarker> cluster) {
         if (cluster.size() == 1) return cluster.members().get(0);
         java.util.Map<Identifier, Integer> counts = new java.util.HashMap<>();
-        RegionHit best = cluster.members().get(0);
+        MapMarker best = cluster.members().get(0);
         int bestCount = 0;
-        for (RegionHit hit : cluster.members()) {
-            Identifier id = SeedWorld.idOf(hit.structure());
-            int n = counts.merge(id, 1, Integer::sum);
+        for (MapMarker marker : cluster.members()) {
+            int n = counts.merge(marker.id(), 1, Integer::sum);
             if (n > bestCount) {
                 bestCount = n;
-                best = hit;
+                best = marker;
             }
         }
         return best;
@@ -923,23 +1081,39 @@ public class SeedScoutScreen extends Screen {
         if (!viewport.contains(click.x(), click.y()) || session == null) {
             return false;
         }
+        if (click.button() == 0 && click.hasShiftDown()) {
+            measuring = true;
+            hasMeasurement = true;
+            measureStartX = viewport.screenToWorldX(click.x());
+            measureStartZ = viewport.screenToWorldZ(click.y());
+            measureEndX = measureStartX;
+            measureEndZ = measureStartZ;
+            return true;
+        }
         if (click.button() == 0) {
+            hasMeasurement = false;
             boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;
-            double hitRadius = dots ? 5 : 8;
-            for (MarkerClusterer.Cluster<RegionHit> cluster : visibleClusters) {
-                if (Math.abs(click.x() - cluster.x()) > hitRadius || Math.abs(click.y() - cluster.y()) > hitRadius) continue;
+            MarkerClusterer.Cluster<MapMarker> cluster = clusterAt(click.x(), click.y());
+            if (cluster != null) {
                 if (cluster.size() > 1 || dots) {
                     viewport.zoomAt(cluster.x(), cluster.y(), cluster.size() > 1 ? 0.35 : 0.5);
                     return true;
                 }
-                RegionHit hit = cluster.members().get(0);
-                Identifier id = SeedWorld.idOf(hit.structure());
-                WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id, session.dimension().levelId()));
+                MapMarker marker = cluster.members().get(0);
+                WaypointState.set(new Waypoint(StructureIcons.displayName(marker.id()), marker.blockX(), marker.blockZ(),
+                        marker.id(), session.dimension().levelId()));
                 onClose();
                 return true;
             }
         }
         if (click.button() == 1) {
+            MarkerClusterer.Cluster<MapMarker> cluster = clusterAt(click.x(), click.y());
+            if (cluster != null && cluster.size() == 1) {
+                MapMarker marker = cluster.members().get(0);
+                openPointMenu((int) click.x(), (int) click.y(), marker.blockX(), marker.blockZ(),
+                        StructureIcons.displayName(marker.id()), marker.id());
+                return true;
+            }
             int bx = (int) Math.floor(viewport.screenToWorldX(click.x()));
             int bz = (int) Math.floor(viewport.screenToWorldZ(click.y()));
             openPointMenu((int) click.x(), (int) click.y(), bx, bz);
@@ -955,11 +1129,17 @@ public class SeedScoutScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent click) {
         dragging = false;
+        measuring = false;
         return super.mouseReleased(click);
     }
 
     @Override
     public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY) {
+        if (measuring && click.button() == 0) {
+            measureEndX = viewport.screenToWorldX(click.x());
+            measureEndZ = viewport.screenToWorldZ(click.y());
+            return true;
+        }
         if (dragging && click.button() == 0) {
             viewport.pan(offsetX, offsetY);
             return true;
@@ -984,6 +1164,10 @@ public class SeedScoutScreen extends Screen {
     public boolean keyPressed(KeyEvent input) {
         if (menu != null && input.isEscape()) {
             menu = null;
+            return true;
+        }
+        if (hasMeasurement && input.isEscape()) {
+            hasMeasurement = false;
             return true;
         }
         if (picker != null && input.isEscape()) {

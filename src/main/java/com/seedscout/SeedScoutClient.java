@@ -6,6 +6,7 @@ import com.seedscout.gui.SeedScoutScreen;
 import com.seedscout.map.MapWorker;
 import com.seedscout.waypoint.BeamRenderer;
 import com.seedscout.waypoint.HudArrowRenderer;
+import com.seedscout.waypoint.ShareHandler;
 import com.seedscout.waypoint.WaypointState;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -48,6 +49,7 @@ public final class SeedScoutClient implements ClientModInitializer {
 
         BeamRenderer.init();
         LevelRenderEvents.COLLECT_SUBMITS.register(BeamRenderer::render);
+        ShareHandler.init();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             WaypointState.tick(client);

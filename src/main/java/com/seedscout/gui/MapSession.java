@@ -1,6 +1,7 @@
 package com.seedscout.gui;
 
 import com.seedscout.SeedScoutClient;
+import com.seedscout.map.FeatureIndex;
 import com.seedscout.map.MapWorker;
 import com.seedscout.map.StructureIndex;
 import com.seedscout.map.TileCache;
@@ -36,6 +37,7 @@ public final class MapSession {
     private final SeedWorld world;
     private final TextureManager textureManager;
     private final StructureIndex structures;
+    private final FeatureIndex features;
     private final TilePixels.ColorSampler biomeColors;
     private final List<Holder<StructureSet>> sets;
     private final Set<Identifier> enabledStructures = new HashSet<>();
@@ -73,6 +75,19 @@ public final class MapSession {
                 setId -> world.concentricRingHits(setById(setId)),
                 MapWorker::submit,
                 client::execute);
+        this.features = new FeatureIndex(world::featuresInChunk, MapWorker::submit, client::execute);
+    }
+
+    public FeatureIndex features() { return features; }
+
+    public List<Identifier> featureIds() { return world.featureIds(); }
+
+    public Set<Identifier> enabledFeatures() {
+        Set<Identifier> out = new HashSet<>();
+        for (Identifier id : world.featureIds()) {
+            if (enabledStructures.contains(id)) out.add(id);
+        }
+        return out;
     }
 
     public static MapSession open(long seed, Dimension dimension, TextureManager textureManager, MinecraftServer server) {
@@ -144,5 +159,6 @@ public final class MapSession {
     public void close() {
         tiles.clear();
         structures.clear();
+        features.clear();
     }
 }

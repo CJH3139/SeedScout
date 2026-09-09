@@ -11,6 +11,10 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 - Biome Y selector for the Overworld: view the map at Y 64, 32, 0, -40, or -60 to find cave biomes such as lush caves, dripstone caves, and deep dark.
 - Click a result or an icon on the map, or right-click anywhere on the map, to set a waypoint. A HUD arrow shows direction and distance, and a colored beam marks the spot through terrain. The waypoint clears itself when you arrive.
 - Go to any coordinates by typing them into the panel, copy the waypoint or map center to the clipboard, and see which way you are facing on the map.
+- Amethyst geode finder: replays the game's feature placement per chunk, so geode positions and depths are exact except where a geode is skipped for touching water or lava.
+- Hover the map to see the biome name and coordinates, or the structure under the cursor. Shift-drag to measure a distance.
+- Share a location in chat: other SeedScout users get a clickable line that sets the waypoint for them.
+- Export the visible map as a PNG to `seedscout/exports` in the game folder.
 - Slime chunk overlay, chunk and region grid, and world spawn marker.
 - In singleplayer the map uses the world's own generation settings, so data packs and mods that change biomes or structure placement (Terralith, for example) are shown correctly.
 - Works on multiplayer servers: enter the seed once per server and it is remembered.
@@ -23,9 +27,11 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 2. In a world, press `Y` (rebindable in Controls under SeedScout) to open the map.
 3. In singleplayer the seed is read automatically. On a server, type the seed in the field at the top of the side panel and click Apply.
 4. The map opens on your current dimension; switch with the Overworld, Nether, and End tabs. In the structure grid, left-click an icon to show or hide that type on the map and right-click it to make it the search target.
-5. Pick Structures or Biomes, a target and a radius in the right panel, and click Search. Click a result to set a waypoint and close the map, or right-click it to copy its coordinates. Right-click anywhere on the map for a menu: set a waypoint there, copy the coordinates, or teleport (sends a `/tp` command, so it only works where you have permission).
+5. Pick Structures or Biomes, a target and a radius in the right panel, and click Search. Click a result to set a waypoint and close the map. Right-click a result, a map icon, or any point on the map for a menu: set a waypoint, copy the coordinates, share them in chat, or teleport (sends a `/tp` command, so it only works where you have permission).
 6. Type coordinates such as `640 816` or `x=640 z=816` into the Go to field and press Enter to jump there. The Biome Y row switches the Overworld map between surface and cave layers.
-7. Follow the arrow. The arrow and beam show only while you are in the target's dimension. Press `Y` again or Escape to close the map at any time. Clear removes the waypoint, Copy puts its coordinates on the clipboard.
+7. Hold Shift and drag on the map to measure a distance; Escape or a click clears it. Export saves the visible map as a PNG.
+8. Follow the arrow. The arrow and beam show only while you are in the target's dimension. Press `Y` again or Escape to close the map at any time. Clear removes the waypoint, Copy puts its coordinates on the clipboard.
+9. When someone shares a location from SeedScout in chat, a "Click to set as waypoint" line appears under it. The `/seedscout waypoint <x> <z> <dimension> <name>` client command does the same by hand.
 
 ## Building
 
@@ -46,6 +52,7 @@ Settings are stored in `config/seedscout.json`: saved seeds per server address, 
 - Structure validation mirrors the game's biome and terrain checks for each structure type, but does not assemble jigsaw pieces, so a village or outpost can very rarely be shown where the game skipped it.
 - On multiplayer servers the map assumes vanilla generation; custom world generation data packs are only picked up in singleplayer, where the world's own settings are available.
 - The Biome Y layers sample the biome at a fixed height rather than the real terrain surface, so the default 64 layer can show cave biomes under high mountains.
+- Geode positions come from the placement step only. The game additionally cancels a geode that would touch water, lava, or bedrock, so a small share of shown geodes will be missing in the world. Dungeons (spawner rooms) are not shown because their placement depends on the carved caves, which cannot be known without generating the chunk.
 - The search is centered on the map's current center, so click Center on player first if you want results relative to your position.
 - The first time the map opens in a game session it takes a second or two while world generation data loads.
 - Very dense structure types (mineshafts, buried treasure) are searched within a smaller effective radius, and their icons are hidden when zoomed far out.

@@ -67,6 +67,28 @@ class SeedWorldTest {
     }
 
     @Test
+    void geodeReplayMatchesVanillaRarity() {
+        Identifier geode = Identifier.withDefaultNamespace("amethyst_geode");
+        assertTrue(world.featureIds().contains(geode), "geode finder available: " + world.featureIds());
+        int hits = 0;
+        for (int cx = -50; cx < 50; cx++) {
+            for (int cz = -50; cz < 50; cz++) {
+                for (FeatureFinder.FeatureHit hit : world.featuresInChunk(geode, cx, cz)) {
+                    hits++;
+                    assertEquals(geode, hit.featureId());
+                    assertTrue(hit.blockX() >= cx * 16 && hit.blockX() < cx * 16 + 16, "x inside chunk");
+                    assertTrue(hit.blockZ() >= cz * 16 && hit.blockZ() < cz * 16 + 16, "z inside chunk");
+                    assertTrue(hit.blockY() >= -58 && hit.blockY() <= 30, "y in geode range: " + hit.blockY());
+                }
+            }
+        }
+        assertTrue(hits > 250 && hits < 600, "about 1 in 24 chunks should have a geode, got " + hits + " of 10000");
+        List<FeatureFinder.FeatureHit> nearest = world.findFeatures(geode, 0, 0, 2000, 5);
+        assertEquals(5, nearest.size());
+        assertTrue(SeedWorld.create(1L, Dimension.NETHER).featureIds().isEmpty());
+    }
+
+    @Test
     void listsVanillaStructures() {
         List<String> ids = world.allStructures().stream().map(e -> SeedWorld.idOf(e).toString()).toList();
         assertTrue(ids.contains("minecraft:village_plains"));

@@ -59,6 +59,7 @@ public final class StructureIcons {
         item("bastion_remnant", Items.PIGLIN_HEAD);
         item("nether_fossil", Items.BONE);
         item("end_city", Items.PURPUR_BLOCK);
+        item("amethyst_geode", Items.AMETHYST_CLUSTER);
     }
 
     private StructureIcons() {}

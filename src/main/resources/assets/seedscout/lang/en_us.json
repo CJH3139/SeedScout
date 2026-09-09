@@ -48,5 +48,15 @@
   "seedscout.menu.copy": "Copy coordinates",
   "seedscout.menu.teleport": "Teleport here",
   "seedscout.menu.teleporting": "Teleporting...",
-  "seedscout.menu.teleport_other_dimension": "Go to the %s first"
+  "seedscout.menu.teleport_other_dimension": "Go to the %s first",
+  "seedscout.menu.share": "Share in chat",
+  "seedscout.menu.shared": "Shared in chat",
+  "seedscout.screen.export": "Export",
+  "seedscout.screen.exported": "Saved %s",
+  "seedscout.screen.export_failed": "Export failed, see log",
+  "seedscout.screen.measure": "%s m  (x %s, z %s)",
+  "seedscout.screen.click_zoom": "Click to zoom in",
+  "seedscout.share.follow": "Click to set as waypoint",
+  "seedscout.share.hover": "%s at %s, %s",
+  "seedscout.share.set": "Waypoint set: %s at %s, %s"
 }
