@@ -5,7 +5,7 @@ A client-side Fabric mod for Minecraft 26.2 that puts a Chunkbase-style seed map
 ## Features
 
 - Biome map generated from the world seed using Minecraft's own world generation code, so biome shapes and structure positions match the game exactly. Overworld, Nether, and End.
-- Pan and zoom with three levels of detail. Tiles are computed on a background thread and cached.
+- Pan and zoom with six levels of detail. Tiles are computed on background threads, shown blurry first and sharpened as they finish, prefetched around the view, and cached on disk so a seed you have looked at before opens instantly.
 - Structure icons for every vanilla structure type in the current dimension, toggleable per type. Toggles are remembered.
 - Search by structure type and radius (2000, 5000, 10000, or 50000 blocks). Results are listed nearest first with coordinates and distance, and highlighted on the map.
 - Click a result or an icon on the map, or right-click anywhere on the map, to set a waypoint. A HUD arrow shows direction and distance, and a colored beam marks the spot through terrain. The waypoint clears itself when you arrive.
@@ -35,7 +35,7 @@ The jar is written to `build/libs`.
 
 ## Configuration
 
-Settings are stored in `config/seedscout.json`: saved seeds per server address, enabled structure toggles, and the last search radius.
+Settings are stored in `config/seedscout.json`: saved seeds per server address, enabled structure toggles, the last search radius, and the `diskCache` switch. Cached map tiles live in `seedscout/tiles` inside the game folder, capped at about 512 MB; delete the folder any time to free space.
 
 ## Limitations
 

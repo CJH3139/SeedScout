@@ -30,7 +30,7 @@ public final class MapSession {
 
     private MapSession(SeedWorld world, TextureManager textureManager) {
         this.world = world;
-        this.tiles = new TileCache(textureManager);
+        this.tiles = new TileCache(textureManager, SeedScoutClient.config().diskCache ? openStore(world) : null);
         this.biomeColors = (x, z) -> BiomeColors.colorOf(SeedWorld.idOf(world.biomeAt(x, z)));
         this.sets = world.allStructureSets();
         for (String id : SeedScoutClient.config().enabledStructures) {
@@ -56,6 +56,26 @@ public final class MapSession {
                 setId -> world.concentricRingHits(setById(setId)),
                 MapWorker::submit,
                 client::execute);
+    }
+
+    private static final long CACHE_MAX_BYTES = 512L * 1024 * 1024;
+    private static final long CACHE_TARGET_BYTES = 384L * 1024 * 1024;
+    private static boolean pruned;
+
+    private static java.nio.file.Path cacheRoot() {
+        return net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("tiles");
+    }
+
+    private static com.seedscout.map.TileStore openStore(SeedWorld world) {
+        java.nio.file.Path rootDir = cacheRoot();
+        synchronized (MapSession.class) {
+            if (!pruned) {
+                pruned = true;
+                com.seedscout.map.TileStore.prune(rootDir, CACHE_MAX_BYTES, CACHE_TARGET_BYTES);
+            }
+        }
+        String version = net.minecraft.SharedConstants.getCurrentVersion().name();
+        return new com.seedscout.map.TileStore(rootDir, version, world.dimension().name().toLowerCase(java.util.Locale.ROOT), world.seed());
     }
 
     private Holder<StructureSet> setById(Identifier id) {

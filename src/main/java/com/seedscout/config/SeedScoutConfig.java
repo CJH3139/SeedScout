@@ -25,6 +25,7 @@ public final class SeedScoutConfig {
     public int lastRadius = 5000;
     public boolean showBeam = true;
     public boolean showSlimeChunks = false;
+    public boolean diskCache = true;
 
     public static SeedScoutConfig defaults() {
         SeedScoutConfig config = new SeedScoutConfig();

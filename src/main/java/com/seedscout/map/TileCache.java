@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.seedscout.SeedScoutClient;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import net.minecraft.resources.Identifier;
 
 public final class TileCache {
     public static final int CAPACITY = 512;
+    private static final int COARSE_STEP = 2;
 
     private enum State { PENDING, READY, FAILED }
 
@@ -29,8 +31,15 @@ public final class TileCache {
     private volatile Set<TileKey> visible = Set.of();
     private volatile int generation = 0;
 
+    private final TileStore store;
+
     public TileCache(TextureManager textureManager) {
+        this(textureManager, null);
+    }
+
+    public TileCache(TextureManager textureManager, TileStore store) {
         this.textureManager = textureManager;
+        this.store = store;
     }
 
     public Optional<Identifier> textureFor(TileKey key) {
@@ -60,24 +69,42 @@ public final class TileCache {
             evict();
             return;
         }
-        visible = Set.copyOf(visibleKeys);
-        List<TileKey> missing = new ArrayList<>();
-        for (TileKey key : visibleKeys) {
-            if (!entries.containsKey(key)) {
-                missing.add(key);
+        Set<TileKey> wanted = new HashSet<>(visibleKeys);
+        List<TileKey> coarse = new ArrayList<>();
+        if (!visibleKeys.isEmpty()) {
+            int lod = visibleKeys.get(0).lod();
+            int coarseLod = Math.min(lod + COARSE_STEP, TileKey.LOD_COUNT - 1);
+            if (coarseLod > lod) {
+                for (TileKey key : visibleKeys) {
+                    TileKey parent = TileKey.coarserCovering(key, coarseLod);
+                    if (wanted.add(parent)) coarse.add(parent);
+                }
             }
         }
+        List<TileKey> ring = List.of();
+        if (visibleKeys.size() * 2 + coarse.size() < CAPACITY / 2) {
+            ring = TileKey.ring(visibleKeys);
+            wanted.addAll(ring);
+        }
+        visible = Set.copyOf(wanted);
         final int gen = generation;
-        for (TileKey key : missing) {
+        submitMissing(coarse, centerX, centerZ, sampler, gen, -1.0e15);
+        submitMissing(visibleKeys, centerX, centerZ, sampler, gen, 0.0);
+        submitMissing(ring, centerX, centerZ, sampler, gen, 1.0e15);
+        evict();
+    }
+
+    private void submitMissing(List<TileKey> keys, double centerX, double centerZ, TilePixels.ColorSampler sampler, int gen, double bias) {
+        for (TileKey key : keys) {
+            if (entries.containsKey(key)) continue;
             Entry entry = new Entry();
             entries.put(key, entry);
             double span = TileKey.tileSpanBlocks(key.lod());
             double dx = key.originX() + span / 2 - centerX;
             double dz = key.originZ() + span / 2 - centerZ;
-            double priority = dx * dx + dz * dz;
+            double priority = bias + dx * dx + dz * dz;
             MapWorker.submitOrdered(priority, () -> renderJob(key, gen, sampler));
         }
-        evict();
     }
 
     private void renderJob(TileKey key, int gen, TilePixels.ColorSampler sampler) {
@@ -91,12 +118,19 @@ public final class TileCache {
         }
         NativeImage image = null;
         try {
-            int[] pixels = TilePixels.render(key, sampler, () -> gen != generation || !visible.contains(key));
+            int[] pixels = store == null ? null : store.load(key).orElse(null);
+            boolean fromDisk = pixels != null;
+            if (!fromDisk) {
+                pixels = TilePixels.render(key, sampler, () -> gen != generation || !visible.contains(key));
+            }
             if (pixels == null) {
                 client.execute(() -> {
                     if (gen == generation) entries.remove(key);
                 });
                 return;
+            }
+            if (!fromDisk && store != null) {
+                store.save(key, pixels);
             }
             image = new NativeImage(TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, false);
             for (int pz = 0; pz < TileKey.TILE_PIXELS; pz++) {

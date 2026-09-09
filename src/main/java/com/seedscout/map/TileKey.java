@@ -68,4 +68,32 @@ public record TileKey(int lod, int tileX, int tileZ) {
     private static long tileCount(TileKey min, TileKey max) {
         return (long) (max.tileX - min.tileX + 1) * (max.tileZ - min.tileZ + 1);
     }
+
+    public static TileKey coarserCovering(TileKey key, int lod) {
+        return fromBlock(lod, key.originX(), key.originZ());
+    }
+
+    public static List<TileKey> ring(List<TileKey> tiles) {
+        if (tiles.isEmpty()) return List.of();
+        int lod = tiles.get(0).lod();
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        for (TileKey t : tiles) {
+            minX = Math.min(minX, t.tileX());
+            maxX = Math.max(maxX, t.tileX());
+            minZ = Math.min(minZ, t.tileZ());
+            maxZ = Math.max(maxZ, t.tileZ());
+        }
+        java.util.Set<TileKey> inside = new java.util.HashSet<>(tiles);
+        List<TileKey> ring = new ArrayList<>();
+        for (int tx = minX - 1; tx <= maxX + 1; tx++) {
+            for (int tz = minZ - 1; tz <= maxZ + 1; tz++) {
+                TileKey key = new TileKey(lod, tx, tz);
+                if (!inside.contains(key)) ring.add(key);
+            }
+        }
+        return ring;
+    }
 }

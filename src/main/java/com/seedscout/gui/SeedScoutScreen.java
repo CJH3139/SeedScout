@@ -571,7 +571,7 @@ public class SeedScoutScreen extends Screen {
             if (texture.isPresent()) {
                 context.blit(RenderPipelines.GUI_TEXTURED, texture.get(), sx, sy, 0, 0, w, h,
                         TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, TileKey.TILE_PIXELS);
-            } else {
+            } else if (!drawCoarseFallback(context, key, sx, sy, w, h)) {
                 context.fill(sx, sy, sx + w, sy + h, session.tiles().isFailed(key) ? FAILED : PLACEHOLDER);
             }
         }
@@ -592,6 +592,22 @@ public class SeedScoutScreen extends Screen {
             }
         }
         context.disableScissor();
+    }
+
+    private boolean drawCoarseFallback(GuiGraphicsExtractor context, TileKey key, int sx, int sy, int w, int h) {
+        for (int lod = key.lod() + 1; lod < TileKey.LOD_COUNT; lod++) {
+            TileKey coarse = TileKey.coarserCovering(key, lod);
+            var texture = session.tiles().textureFor(coarse);
+            if (texture.isEmpty()) continue;
+            int ratio = TileKey.tileSpanBlocks(lod) / TileKey.tileSpanBlocks(key.lod());
+            float region = (float) TileKey.TILE_PIXELS / ratio;
+            float u = (float) (key.originX() - coarse.originX()) / TileKey.tileSpanBlocks(lod) * TileKey.TILE_PIXELS;
+            float v = (float) (key.originZ() - coarse.originZ()) / TileKey.tileSpanBlocks(lod) * TileKey.TILE_PIXELS;
+            context.blit(RenderPipelines.GUI_TEXTURED, texture.get(), sx, sy, u, v, w, h,
+                    Math.max(1, Math.round(region)), Math.max(1, Math.round(region)), TileKey.TILE_PIXELS, TileKey.TILE_PIXELS);
+            return true;
+        }
+        return false;
     }
 
     private void renderStructureIcons(GuiGraphicsExtractor context) {

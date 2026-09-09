@@ -78,4 +78,16 @@ class TileKeyTest {
         int overBudgetAtLod5 = 16384 * 23 - 1;
         assertEquals(5, TileKey.lodForView(4.0, 0, 0, overBudgetAtLod5, overBudgetAtLod5));
     }
+
+    @Test
+    void ringSurroundsTheVisibleBlock() {
+        List<TileKey> visible = TileKey.covering(0, 0, 0, 1023, 1023);
+        assertEquals(4, visible.size());
+        List<TileKey> ring = TileKey.ring(visible);
+        assertEquals(12, ring.size());
+        assertTrue(ring.contains(new TileKey(0, -1, -1)));
+        assertTrue(ring.contains(new TileKey(0, 2, 2)));
+        assertTrue(ring.stream().noneMatch(visible::contains));
+        assertEquals(new TileKey(2, 0, 0), TileKey.coarserCovering(new TileKey(0, 3, 3), 2));
+    }
 }
