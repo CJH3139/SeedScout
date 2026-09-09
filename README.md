@@ -2,7 +2,7 @@
 
 Chunkbase inside Minecraft. A client-side Fabric mod for 26.2 that shows the seed map of your world, finds structures and biomes, and guides you there with a HUD arrow and a beam.
 
-<img width="3840" height="2100" alt="SeedScout map screen" src="https://github.com/user-attachments/assets/b0999fe2-5d92-405e-bbe9-d4c443830676" />
+<img width="3840" height="2091" alt="image" src="https://github.com/user-attachments/assets/57fe846b-215c-485f-b10b-01a9db424394" />
 
 ## Features
 
