@@ -6,9 +6,11 @@ import com.seedscout.config.SeedScoutConfig;
 import com.seedscout.map.MapViewport;
 import com.seedscout.map.MapWorker;
 import com.seedscout.map.TileKey;
+import com.seedscout.worldgen.Dimension;
 import com.seedscout.worldgen.RegionHit;
 import com.seedscout.worldgen.SeedSource;
 import com.seedscout.worldgen.SeedWorld;
+import com.seedscout.worldgen.BiomeHit;
 import com.seedscout.worldgen.StructureHit;
 import com.seedscout.waypoint.Waypoint;
 import com.seedscout.waypoint.WaypointState;
@@ -40,11 +42,11 @@ public class SeedScoutScreen extends Screen {
     private static boolean sessionLoading;
     private static String sessionError;
 
-    private static Long loadingSeed;
+    private static SessionKey loadingKey;
 
-    private static Long errorSeed;
+    private static SessionKey errorKey;
 
-    private static Long pendingSeed;
+    private static SessionKey pendingKey;
     protected static final MapViewport viewport = new MapViewport();
     private static boolean viewportInitialized;
 
@@ -63,18 +65,33 @@ public class SeedScoutScreen extends Screen {
     private Button clearButton;
     private CycleButton<Boolean> beamButton;
     private static Identifier lastStructure = Identifier.withDefaultNamespace("village_plains");
-    private static List<StructureHit> lastResults = List.of();
+    private static List<SearchResult> lastResults = List.of();
+    private static boolean biomeMode;
+    private static Identifier lastBiome = Identifier.withDefaultNamespace("plains");
+    private static boolean waypointsTab;
+    private CycleButton<Boolean> modeButton;
+    private Button resultsTabButton;
+    private Button waypointsTabButton;
+    private CycleButton<Boolean> slimeButton;
 
     private static boolean searching;
 
     private static Long lastAppliedSeed;
+    private static Dimension currentDimension = Dimension.OVERWORLD;
+    private final Button[] dimensionButtons = new Button[Dimension.values().length];
+
+    private record SessionKey(long seed, Dimension dimension) {}
 
     public SeedScoutScreen(Minecraft client) {
         super(Component.translatable("seedscout.screen.title"));
+        if (client.player != null) {
+            currentDimension = Dimension.fromLevel(client.player.level().dimension());
+        }
     }
 
     @Override
     protected void init() {
+        WaypointState.ensureLoaded(minecraft);
         viewport.left = 0;
         viewport.top = TOP_BAR_HEIGHT;
         viewport.width = width - RIGHT_PANEL_WIDTH;
@@ -109,21 +126,31 @@ public class SeedScoutScreen extends Screen {
         applyButton.active = !singleplayer;
         addRenderableWidget(applyButton);
 
+        int dx = 226;
+        int[] widths = {64, 50, 40};
+        for (Dimension d : Dimension.values()) {
+            Button b = Button.builder(d.displayName(), btn -> switchDimension(d))
+                    .bounds(dx, 20, widths[d.ordinal()], 18).build();
+            dimensionButtons[d.ordinal()] = b;
+            addRenderableWidget(b);
+            dx += widths[d.ordinal()] + 4;
+        }
+        updateDimensionButtons();
+
         rebuildToggleBar();
         buildRightPanel();
     }
 
     void rebuildToggleBar() {
+        updateDimensionButtons();
         if (session == null) {
             toggleBar = null;
             return;
         }
         List<Identifier> ids = session.world().allStructures().stream()
                 .map(SeedWorld::idOf)
-                .filter(id -> !id.getPath().startsWith("nether") && !id.getPath().equals("end_city")
-                        && !id.getPath().equals("bastion_remnant") && !id.getPath().equals("fortress"))
                 .toList();
-        toggleBar = new StructureToggleBar(230, 20, width - 230 - 4, ids, session.enabledStructures(), () -> {
+        toggleBar = new StructureToggleBar(392, 20, width - 392 - 4, ids, session.enabledStructures(), () -> {
             config.enabledStructures = session.enabledStructures().stream().map(Identifier::toString).sorted().toList();
             SeedScoutClient.saveConfig();
         }, this::selectStructure);
@@ -134,18 +161,29 @@ public class SeedScoutScreen extends Screen {
         int pw = RIGHT_PANEL_WIDTH - 12;
         int y = TOP_BAR_HEIGHT + 6;
         closePicker();
-        if (structureButton != null) removeWidget(structureButton);
-        if (radiusButton != null) removeWidget(radiusButton);
-        if (searchButton != null) removeWidget(searchButton);
-        if (resultsList != null) removeWidget(resultsList);
-        if (centerButton != null) removeWidget(centerButton);
-        if (clearButton != null) removeWidget(clearButton);
-        if (beamButton != null) removeWidget(beamButton);
+        for (var w : new net.minecraft.client.gui.components.AbstractWidget[]{modeButton, structureButton, radiusButton, searchButton,
+                resultsTabButton, waypointsTabButton, resultsList, centerButton, clearButton, beamButton, slimeButton}) {
+            if (w != null) removeWidget(w);
+        }
 
-        List<Identifier> ids = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
+        modeButton = CycleButton.<Boolean>builder(b -> Component.translatable(b ? "seedscout.screen.mode_biome" : "seedscout.screen.mode_structure"), biomeMode)
+                .withValues(List.of(Boolean.FALSE, Boolean.TRUE))
+                .displayOnlyValue()
+                .create(px, y, pw, 20, Component.empty(), (b, v) -> {
+                    biomeMode = v;
+                    closePicker();
+                    if (structureButton != null) structureButton.setMessage(targetLabel());
+                });
+        addRenderableWidget(modeButton);
+        y += 24;
+
+        List<Identifier> structureIds = session == null ? List.of(lastStructure) : session.world().allStructures().stream()
                 .map(SeedWorld::idOf).toList();
-        if (!ids.contains(lastStructure)) lastStructure = ids.get(0);
-        structureButton = Button.builder(structureLabel(), b -> togglePicker(ids))
+        if (!structureIds.contains(lastStructure)) lastStructure = structureIds.get(0);
+        List<Identifier> biomeIds = session == null ? List.of(lastBiome) : session.world().allBiomes().stream()
+                .map(SeedWorld::idOf).toList();
+        if (!biomeIds.contains(lastBiome)) lastBiome = biomeIds.get(0);
+        structureButton = Button.builder(targetLabel(), b -> togglePicker(biomeMode ? biomeIds : structureIds))
                 .bounds(px, y, pw, 20).build();
         addRenderableWidget(structureButton);
         y += 24;
@@ -169,43 +207,99 @@ public class SeedScoutScreen extends Screen {
         addRenderableWidget(searchButton);
         y += 24;
 
-        resultsList = new ResultsListWidget(minecraft, pw, Math.max(20, height - y - 54), y, this::pickResult);
+        resultsTabButton = Button.builder(Component.translatable("seedscout.screen.tab_results"), b -> {
+                    waypointsTab = false;
+                    refreshList();
+                })
+                .bounds(px, y, pw / 2 - 2, 18).build();
+        waypointsTabButton = Button.builder(Component.translatable("seedscout.screen.tab_waypoints"), b -> {
+                    waypointsTab = true;
+                    refreshList();
+                })
+                .bounds(px + pw / 2 + 2, y, pw / 2 - 2, 18).build();
+        addRenderableWidget(resultsTabButton);
+        addRenderableWidget(waypointsTabButton);
+        y += 22;
+
+        resultsList = new ResultsListWidget(minecraft, pw, Math.max(20, height - y - 54), y);
         resultsList.setX(px);
-        if (searching) {
-            resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
-        } else {
-            resultsList.setResults(lastResults);
-        }
         addRenderableWidget(resultsList);
+        refreshList();
 
         int bottomY = height - 26;
+        int third = (pw - 4) / 3;
         beamButton = CycleButton.onOffBuilder(config.showBeam)
-                .create(px, bottomY, pw / 2 - 2, 20, Component.translatable("seedscout.screen.beam"), (b, v) -> {
+                .create(px, bottomY, third, 20, Component.translatable("seedscout.screen.beam"), (b, v) -> {
                     config.showBeam = v;
                     SeedScoutClient.saveConfig();
                 });
         addRenderableWidget(beamButton);
-        centerButton = Button.builder(
-                        Component.translatable("seedscout.screen.center"), b -> centerOnPlayer())
-                .bounds(px, height - 50, pw, 20).build();
-        addRenderableWidget(centerButton);
+        slimeButton = CycleButton.onOffBuilder(config.showSlimeChunks)
+                .create(px + third + 2, bottomY, third, 20, Component.translatable("seedscout.screen.slime"), (b, v) -> {
+                    config.showSlimeChunks = v;
+                    SeedScoutClient.saveConfig();
+                });
+        addRenderableWidget(slimeButton);
         clearButton = Button.builder(
                         Component.translatable("seedscout.screen.clear_waypoint"), b -> {
                             WaypointState.clear();
                             b.active = false;
+                            refreshList();
                         })
-                .bounds(px + pw / 2 + 2, bottomY, pw / 2 - 2, 20).build();
+                .bounds(px + 2 * (third + 2), bottomY, pw - 2 * (third + 2), 20).build();
         clearButton.active = WaypointState.get().isPresent();
         addRenderableWidget(clearButton);
+        centerButton = Button.builder(
+                        Component.translatable("seedscout.screen.center"), b -> centerOnPlayer())
+                .bounds(px, height - 50, pw, 20).build();
+        addRenderableWidget(centerButton);
     }
 
-    private Component structureLabel() {
-        return Component.literal(StructureIcons.displayName(lastStructure));
+    private void refreshList() {
+        if (resultsList == null) return;
+        resultsTabButton.active = waypointsTab;
+        waypointsTabButton.active = !waypointsTab;
+        if (waypointsTab) {
+            List<ResultsListWidget.Row> rows = new java.util.ArrayList<>();
+            for (Waypoint w : WaypointState.saved()) {
+                boolean active = WaypointState.get().map(w::equals).orElse(false);
+                String title = (active ? "> " : "") + w.name();
+                String sub = w.x() + ", " + w.z() + "  " + Dimension.fromLevelId(w.dimension()).displayName().getString();
+                rows.add(new ResultsListWidget.Row(title, sub, w.structureId(), WaypointState.colorOf(w),
+                        () -> {
+                            WaypointState.activate(w);
+                            onClose();
+                        },
+                        () -> {
+                            WaypointState.remove(w);
+                            refreshList();
+                            if (clearButton != null) clearButton.active = WaypointState.get().isPresent();
+                        }));
+            }
+            resultsList.setRows(rows, Component.translatable("seedscout.screen.no_waypoints"));
+        } else if (searching) {
+            resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
+        } else {
+            List<ResultsListWidget.Row> rows = new java.util.ArrayList<>();
+            for (SearchResult r : lastResults) {
+                String sub = r.x() + ", " + r.z() + "  " + Math.round(r.distance()) + " m";
+                rows.add(new ResultsListWidget.Row(r.name(), sub, r.structureId(), r.color(), () -> pickResult(r), null));
+            }
+            resultsList.setRows(rows, Component.translatable("seedscout.screen.no_results"));
+        }
+    }
+
+    private Component targetLabel() {
+        return Component.literal(StructureIcons.displayName(biomeMode ? lastBiome : lastStructure));
     }
 
     private void selectStructure(Identifier id) {
-        lastStructure = id;
-        if (structureButton != null) structureButton.setMessage(structureLabel());
+        if (biomeMode) {
+            lastBiome = id;
+        } else {
+            lastStructure = id;
+        }
+        if (structureButton != null) structureButton.setMessage(targetLabel());
     }
 
     private void togglePicker(List<Identifier> ids) {
@@ -220,7 +314,7 @@ public class SeedScoutScreen extends Screen {
         pickerFilter = new EditBox(font, x, y, w, 18, Component.translatable("seedscout.screen.filter"));
         pickerFilter.setHint(Component.translatable("seedscout.screen.filter"));
         pickerFilter.setMaxLength(32);
-        picker = new StructurePickerWidget(minecraft, x, y + 22, w, h - 22, ids, id -> {
+        picker = new StructurePickerWidget(minecraft, x, y + 22, w, h - 22, ids, biomeMode, id -> {
             selectStructure(id);
             closePicker();
         });
@@ -249,20 +343,28 @@ public class SeedScoutScreen extends Screen {
 
     private void runSearch() {
         if (session == null) return;
-        Identifier structureId = lastStructure;
+        boolean biomes = biomeMode;
+        Identifier targetId = biomes ? lastBiome : lastStructure;
         int radiusBlocks = radiusButton.getValue();
         MapSession current = session;
         searching = true;
         lastResults = List.of();
-        resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
+        waypointsTab = false;
+        refreshList();
         searchButton.active = false;
-        double cx = viewport.centerX;
-        double cz = viewport.centerZ;
-        ChunkPos center = new ChunkPos((int) Math.floor(cx) >> 4, (int) Math.floor(cz) >> 4);
+        int cx = (int) Math.floor(viewport.centerX);
+        int cz = (int) Math.floor(viewport.centerZ);
+        ChunkPos center = new ChunkPos(cx >> 4, cz >> 4);
         MapWorker.submit(() -> {
-            List<StructureHit> hits;
+            List<SearchResult> results;
             try {
-                hits = current.world().findStructures(current.world().structure(structureId), center, radiusBlocks / 16, 20);
+                if (biomes) {
+                    results = current.world().findBiome(current.world().biome(targetId), cx, cz, radiusBlocks, 20)
+                            .stream().map(SearchResult::of).toList();
+                } else {
+                    results = current.world().findStructures(current.world().structure(targetId), center, radiusBlocks / 16, 20)
+                            .stream().map(SearchResult::of).toList();
+                }
             } catch (Throwable t) {
                 SeedScoutClient.LOGGER.error("Search failed", t);
                 minecraft.execute(() -> {
@@ -278,18 +380,17 @@ public class SeedScoutScreen extends Screen {
             minecraft.execute(() -> {
                 if (session != current) return;
                 searching = false;
-                lastResults = hits;
+                lastResults = results;
                 if (minecraft.gui.screen() instanceof SeedScoutScreen s) {
-                    s.resultsList.setResults(hits);
+                    s.refreshList();
                     s.searchButton.active = true;
                 }
             });
         });
     }
 
-    protected void pickResult(StructureHit hit) {
-        Identifier id = SeedWorld.idOf(hit.structure());
-        WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id));
+    protected void pickResult(SearchResult result) {
+        WaypointState.set(new Waypoint(result.name(), result.x(), result.z(), result.structureId(), session.dimension().levelId()));
         onClose();
     }
 
@@ -324,10 +425,10 @@ public class SeedScoutScreen extends Screen {
         });
         long parsedSeed = parsed.getAsLong();
         lastAppliedSeed = parsedSeed;
-        if (session != null && session.seed() == parsedSeed) {
+        if (session != null && session.seed() == parsedSeed && session.dimension() == currentDimension) {
             return;
         }
-        errorSeed = null;
+        errorKey = null;
         sessionError = null;
         ensureSession(parsedSeed);
     }
@@ -336,16 +437,17 @@ public class SeedScoutScreen extends Screen {
         if (session != null) session.close();
         session = null;
         sessionError = null;
-        errorSeed = null;
+        errorKey = null;
         sessionLoading = false;
-        loadingSeed = null;
-        pendingSeed = null;
+        loadingKey = null;
+        pendingKey = null;
         viewportInitialized = false;
         lastResults = List.of();
         searching = false;
     }
 
     public static void resetForNewWorld() {
+        WaypointState.reset();
         clearSession();
         lastResults = List.of();
         searching = false;
@@ -354,24 +456,25 @@ public class SeedScoutScreen extends Screen {
     }
 
     protected void ensureSession(long seed) {
-        if (session != null && session.seed() == seed) return;
-        if (errorSeed != null) {
-            if (errorSeed == seed) return;
-            errorSeed = null;
+        SessionKey key = new SessionKey(seed, currentDimension);
+        if (session != null && session.seed() == seed && session.dimension() == key.dimension()) return;
+        if (errorKey != null) {
+            if (errorKey.equals(key)) return;
+            errorKey = null;
             sessionError = null;
         }
         if (sessionLoading) {
-            if (loadingSeed != null && loadingSeed == seed) return;
-            pendingSeed = seed;
+            if (key.equals(loadingKey)) return;
+            pendingKey = key;
             return;
         }
         sessionLoading = true;
-        loadingSeed = seed;
+        loadingKey = key;
         MapWorker.submit(() -> {
             try {
-                MapSession fresh = MapSession.open(seed, minecraft.getTextureManager());
+                MapSession fresh = MapSession.open(seed, key.dimension(), minecraft.getTextureManager());
                 minecraft.execute(() -> {
-                    boolean seedChanged = session == null || session.seed() != seed;
+                    boolean seedChanged = session == null || session.seed() != seed || session.dimension() != key.dimension();
                     if (session != null) session.close();
                     session = fresh;
                     lastResults = List.of();
@@ -381,9 +484,9 @@ public class SeedScoutScreen extends Screen {
                         screen.buildRightPanel();
                     }
                     sessionLoading = false;
-                    loadingSeed = null;
+                    loadingKey = null;
                     if (seedChanged) viewportInitialized = false;
-                    takePendingExcept(seed);
+                    takePendingExcept(key);
                 });
             } catch (Throwable t) {
                 SeedScoutClient.LOGGER.error("Could not build worldgen for seed {}", seed, t);
@@ -393,25 +496,49 @@ public class SeedScoutScreen extends Screen {
                         session = null;
                     }
                     sessionError = Component.translatable("seedscout.screen.unsupported").getString();
-                    errorSeed = seed;
+                    errorKey = key;
                     lastResults = List.of();
                     searching = false;
                     if (minecraft.gui.screen() instanceof SeedScoutScreen screen) {
                         screen.buildRightPanel();
                     }
                     sessionLoading = false;
-                    loadingSeed = null;
-                    takePendingExcept(seed);
+                    loadingKey = null;
+                    takePendingExcept(key);
                 });
             }
         });
     }
 
-    private void takePendingExcept(long justHandledSeed) {
-        Long next = pendingSeed;
-        pendingSeed = null;
-        if (next != null && next != justHandledSeed) {
-            ensureSession(next);
+    private void takePendingExcept(SessionKey justHandled) {
+        SessionKey next = pendingKey;
+        pendingKey = null;
+        if (next != null && !next.equals(justHandled)) {
+            currentDimension = next.dimension();
+            ensureSession(next.seed());
+        }
+    }
+
+    private void switchDimension(Dimension dimension) {
+        if (dimension == currentDimension) return;
+        currentDimension = dimension;
+        updateDimensionButtons();
+        if (minecraft.player != null && Dimension.fromLevel(minecraft.player.level().dimension()) == dimension) {
+            centerOnPlayer();
+        } else {
+            viewport.centerX = 0;
+            viewport.centerZ = 0;
+        }
+        Long seed = session != null ? Long.valueOf(session.seed()) : lastAppliedSeed;
+        java.util.OptionalLong resolved = SeedSource.resolve(minecraft, config);
+        if (resolved.isPresent()) seed = resolved.getAsLong();
+        if (seed != null) ensureSession(seed);
+    }
+
+    private void updateDimensionButtons() {
+        for (Dimension d : Dimension.values()) {
+            Button b = dimensionButtons[d.ordinal()];
+            if (b != null) b.active = d != currentDimension;
         }
     }
 
@@ -467,6 +594,22 @@ public class SeedScoutScreen extends Screen {
                 context.fill(sx, sy, sx + w, sy + h, session.tiles().isFailed(key) ? FAILED : PLACEHOLDER);
             }
         }
+        if (config.showSlimeChunks && session.dimension() == Dimension.OVERWORLD && viewport.scale <= 2.0) {
+            int minCx = viewport.minBlockX() >> 4;
+            int maxCx = viewport.maxBlockX() >> 4;
+            int minCz = viewport.minBlockZ() >> 4;
+            int maxCz = viewport.maxBlockZ() >> 4;
+            for (int cx = minCx; cx <= maxCx; cx++) {
+                for (int cz = minCz; cz <= maxCz; cz++) {
+                    if (!session.isSlimeChunk(cx, cz)) continue;
+                    int sx = (int) Math.floor(viewport.worldToScreenX(cx << 4));
+                    int sy = (int) Math.floor(viewport.worldToScreenZ(cz << 4));
+                    int ex = (int) Math.floor(viewport.worldToScreenX((cx << 4) + 16));
+                    int ey = (int) Math.floor(viewport.worldToScreenZ((cz << 4) + 16));
+                    context.fill(sx, sy, ex, ey, 0x7030FF30);
+                }
+            }
+        }
         context.disableScissor();
     }
 
@@ -487,27 +630,39 @@ public class SeedScoutScreen extends Screen {
                 StructureIcons.drawIcon(context, id, sx - 8, sy - 8);
             }
         }
-        for (StructureHit hit : lastResults) {
-            int sx = (int) Math.round(viewport.worldToScreenX(hit.blockX()));
-            int sy = (int) Math.round(viewport.worldToScreenZ(hit.blockZ()));
+        for (SearchResult hit : lastResults) {
+            int sx = (int) Math.round(viewport.worldToScreenX(hit.x()));
+            int sy = (int) Math.round(viewport.worldToScreenZ(hit.z()));
             int r = 11;
             context.fill(sx - r, sy - r, sx + r, sy - r + 2, 0xFFFFD700);
             context.fill(sx - r, sy + r - 2, sx + r, sy + r, 0xFFFFD700);
             context.fill(sx - r, sy - r, sx - r + 2, sy + r, 0xFFFFD700);
             context.fill(sx + r - 2, sy - r, sx + r, sy + r, 0xFFFFD700);
-            Identifier resultId = SeedWorld.idOf(hit.structure());
-            if (viewport.lod() >= 2) {
-                context.fill(sx - 2, sy - 2, sx + 2, sy + 2, StructureIcons.colorFor(resultId));
+            if (viewport.lod() >= 2 || hit.structureId() == null) {
+                context.fill(sx - 3, sy - 3, sx + 3, sy + 3, hit.color());
             } else {
-                StructureIcons.drawIcon(context, resultId, sx - 8, sy - 8);
+                StructureIcons.drawIcon(context, hit.structureId(), sx - 8, sy - 8);
             }
         }
-        WaypointState.get().ifPresent(wp -> {
+        if (minecraft.level != null) {
+            var respawn = minecraft.level.getRespawnData();
+            if (respawn.dimension().identifier().equals(session.dimension().levelId())) {
+                int sx = (int) Math.round(viewport.worldToScreenX(respawn.pos().getX()));
+                int sy = (int) Math.round(viewport.worldToScreenZ(respawn.pos().getZ()));
+                StructureIcons.drawMapSprite(context, "target_point", sx - 8, sy - 8);
+            }
+        }
+        Identifier mapDimension = session.dimension().levelId();
+        for (Waypoint wp : WaypointState.saved()) {
+            if (!wp.dimension().equals(mapDimension)) continue;
+            boolean active = WaypointState.get().map(wp::equals).orElse(false);
             int sx = (int) Math.round(viewport.worldToScreenX(wp.x()));
             int sy = (int) Math.round(viewport.worldToScreenZ(wp.z()));
-            context.fill(sx - 1, sy - 10, sx + 1, sy + 10, 0xFFFF4040);
-            context.fill(sx - 10, sy - 1, sx + 10, sy + 1, 0xFFFF4040);
-        });
+            int color = active ? 0xFFFF4040 : WaypointState.colorOf(wp);
+            int arm = active ? 10 : 6;
+            context.fill(sx - 1, sy - arm, sx + 1, sy + arm, color);
+            context.fill(sx - arm, sy - 1, sx + arm, sy + 1, color);
+        }
         if (minecraft.player != null) {
             int sx = (int) Math.round(viewport.worldToScreenX(minecraft.player.getX()));
             int sy = (int) Math.round(viewport.worldToScreenZ(minecraft.player.getZ()));
@@ -563,11 +718,21 @@ public class SeedScoutScreen extends Screen {
                 double sy = viewport.worldToScreenZ(hit.blockZ());
                 if (Math.abs(click.x() - sx) <= 8 && Math.abs(click.y() - sy) <= 8) {
                     Identifier id = SeedWorld.idOf(hit.structure());
-                    WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id));
+                    WaypointState.set(new Waypoint(StructureIcons.displayName(id), hit.blockX(), hit.blockZ(), id, session.dimension().levelId()));
                     onClose();
                     return true;
                 }
             }
+        }
+        if (session != null && click.button() == 1 && viewport.contains(click.x(), click.y())) {
+            int bx = (int) Math.floor(viewport.screenToWorldX(click.x()));
+            int bz = (int) Math.floor(viewport.screenToWorldZ(click.y()));
+            String name = Component.translatable("seedscout.waypoint.marker", bx, bz).getString();
+            WaypointState.set(new Waypoint(name, bx, bz, null, session.dimension().levelId()));
+            waypointsTab = true;
+            refreshList();
+            if (clearButton != null) clearButton.active = true;
+            return true;
         }
         if (click.button() == 0 && viewport.contains(click.x(), click.y())) {
             dragging = true;

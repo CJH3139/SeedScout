@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.seedscout.SeedScoutClient;
 import com.seedscout.gui.StructureIcons;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -36,6 +37,7 @@ public final class BeamRenderer {
         if (!SeedScoutClient.config().showBeam) return;
         Waypoint waypoint = WaypointState.get().orElse(null);
         if (waypoint == null) return;
+        if (!WaypointState.playerInDimension(Minecraft.getInstance(), waypoint)) return;
         PoseStack poseStack = context.poseStack();
         if (poseStack == null || context.submitNodeCollector() == null) return;
 
@@ -45,7 +47,7 @@ public final class BeamRenderer {
         float y0 = (float) (MIN_Y - camera.y);
         float y1 = (float) (MAX_Y - camera.y);
 
-        int color = StructureIcons.colorFor(waypoint.structureId());
+        int color = WaypointState.colorOf(waypoint);
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;

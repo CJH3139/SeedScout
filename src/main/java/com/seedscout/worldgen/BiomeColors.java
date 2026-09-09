@@ -64,6 +64,16 @@ public final class BiomeColors {
         put("dripstone_caves", 0x7B6254);
         put("lush_caves", 0x283C00);
         put("deep_dark", 0x0E252A);
+        put("nether_wastes", 0xBF3B3B);
+        put("soul_sand_valley", 0x5E3830);
+        put("crimson_forest", 0xDD0808);
+        put("warped_forest", 0x49907B);
+        put("basalt_deltas", 0x403636);
+        put("the_end", 0x8080FF);
+        put("small_end_islands", 0x7070E0);
+        put("end_midlands", 0xB0A880);
+        put("end_highlands", 0xCFC58F);
+        put("end_barrens", 0xA098A0);
     }
 
     private BiomeColors() {}

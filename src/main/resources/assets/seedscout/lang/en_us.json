@@ -18,5 +18,16 @@
   "seedscout.screen.radius": "Radius",
   "seedscout.screen.radius_value": "%s blocks",
   "seedscout.screen.structure": "Structure",
-  "seedscout.waypoint.arrived": "Arrived at %s"
+  "seedscout.waypoint.arrived": "Arrived at %s",
+  "seedscout.dimension.overworld": "Overworld",
+  "seedscout.dimension.nether": "Nether",
+  "seedscout.dimension.end": "End",
+  "seedscout.waypoint.other_dimension": "%s is in the %s",
+  "seedscout.screen.mode_structure": "Search: Structures",
+  "seedscout.screen.mode_biome": "Search: Biomes",
+  "seedscout.screen.tab_results": "Results",
+  "seedscout.screen.tab_waypoints": "Waypoints",
+  "seedscout.screen.slime": "Slime",
+  "seedscout.screen.no_waypoints": "Right-click the map to add a marker",
+  "seedscout.waypoint.marker": "Marker %s, %s"
 }

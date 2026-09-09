@@ -80,6 +80,10 @@ public final class StructureIcons {
     }
 
     public static void drawIcon(GuiGraphicsExtractor context, Identifier structureId, int x, int y) {
+        if (structureId == null) {
+            drawMapSprite(context, "red_x", x, y);
+            return;
+        }
         Identifier icon = iconFor(structureId);
         if (!icon.equals(GENERIC)) {
             context.blit(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16);
@@ -99,7 +103,18 @@ public final class StructureIcons {
         context.blit(RenderPipelines.GUI_TEXTURED, icon, x, y, 0, 0, 16, 16, 16, 16, colorFor(structureId));
     }
 
+    public static void drawSwatch(GuiGraphicsExtractor context, int color, int x, int y) {
+        context.fill(x + 1, y + 1, x + 15, y + 15, 0xFF101010);
+        context.fill(x + 2, y + 2, x + 14, y + 14, color);
+    }
+
+    public static void drawMapSprite(GuiGraphicsExtractor context, String spriteName, int x, int y) {
+        TextureAtlasSprite sprite = context.getSprite(new SpriteId(Sheets.MAP_DECORATIONS_SHEET, Identifier.withDefaultNamespace(spriteName)));
+        context.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, 16, 16);
+    }
+
     public static int colorFor(Identifier structureId) {
+        if (structureId == null) return 0xFFFFD700;
         float hue = (structureId.toString().hashCode() & 0xFFFF) / 65536f;
         return 0xFF000000 | (Color.HSBtoRGB(hue, 0.7f, 0.95f) & 0xFFFFFF);
     }

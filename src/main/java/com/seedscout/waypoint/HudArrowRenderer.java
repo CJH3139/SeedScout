@@ -1,6 +1,8 @@
 package com.seedscout.waypoint;
 
 import com.seedscout.gui.StructureIcons;
+import com.seedscout.worldgen.Dimension;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -14,6 +16,12 @@ public final class HudArrowRenderer {
         if (client.player == null || client.gui.hud.isHidden()) return;
         Waypoint waypoint = WaypointState.get().orElse(null);
         if (waypoint == null) return;
+        if (!WaypointState.playerInDimension(client, waypoint)) {
+            Component label = Component.translatable("seedscout.waypoint.other_dimension", waypoint.name(),
+                    Dimension.fromLevelId(waypoint.dimension()).displayName());
+            context.centeredText(client.font, label, context.guiWidth() / 2, 18, 0xFFCCCCCC);
+            return;
+        }
 
         double px = client.player.getX();
         double pz = client.player.getZ();

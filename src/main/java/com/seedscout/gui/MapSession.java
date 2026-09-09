@@ -6,6 +6,7 @@ import com.seedscout.map.StructureIndex;
 import com.seedscout.map.TileCache;
 import com.seedscout.map.TilePixels;
 import com.seedscout.worldgen.BiomeColors;
+import com.seedscout.worldgen.Dimension;
 import com.seedscout.worldgen.SeedWorld;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,7 +25,7 @@ public final class MapSession {
     private final TileCache tiles;
     private final StructureIndex structures;
     private final TilePixels.ColorSampler biomeColors;
-    private final List<Holder.Reference<StructureSet>> sets;
+    private final List<Holder<StructureSet>> sets;
     private final Set<Identifier> enabledStructures = new HashSet<>();
 
     private MapSession(SeedWorld world, TextureManager textureManager) {
@@ -37,7 +38,7 @@ public final class MapSession {
         }
 
         List<StructureIndex.SetInfo> infos = new ArrayList<>();
-        for (Holder.Reference<StructureSet> set : sets) {
+        for (Holder<StructureSet> set : sets) {
             Set<Identifier> ids = new HashSet<>();
             for (StructureSet.StructureSelectionEntry entry : set.value().structures()) {
                 ids.add(SeedWorld.idOf(entry.structure()));
@@ -51,21 +52,21 @@ public final class MapSession {
         Minecraft client = Minecraft.getInstance();
         this.structures = new StructureIndex(
                 infos,
-                (setId, rx, rz) -> world.structureInRegion(setById(setId), rx, rz),
+                (setId, rx, rz) -> world.structureInRegionConfirmed(setById(setId), rx, rz),
                 setId -> world.concentricRingHits(setById(setId)),
                 MapWorker::submit,
                 client::execute);
     }
 
-    private Holder.Reference<StructureSet> setById(Identifier id) {
-        for (Holder.Reference<StructureSet> set : sets) {
+    private Holder<StructureSet> setById(Identifier id) {
+        for (Holder<StructureSet> set : sets) {
             if (SeedWorld.idOf(set).equals(id)) return set;
         }
         throw new IllegalArgumentException("Unknown structure set " + id);
     }
 
-    public static MapSession open(long seed, TextureManager textureManager) {
-        return new MapSession(SeedWorld.create(seed), textureManager);
+    public static MapSession open(long seed, Dimension dimension, TextureManager textureManager) {
+        return new MapSession(SeedWorld.create(seed, dimension), textureManager);
     }
 
     public SeedWorld world() { return world; }
@@ -73,6 +74,19 @@ public final class MapSession {
     public StructureIndex structures() { return structures; }
     public TilePixels.ColorSampler biomeColors() { return biomeColors; }
     public long seed() { return world.seed(); }
+    public Dimension dimension() { return world.dimension(); }
+
+    private final java.util.Map<Long, Boolean> slimeCache = new java.util.HashMap<>();
+
+    public boolean isSlimeChunk(int chunkX, int chunkZ) {
+        long key = (((long) chunkX) << 32) ^ (chunkZ & 0xFFFFFFFFL);
+        Boolean cached = slimeCache.get(key);
+        if (cached == null) {
+            cached = world.isSlimeChunk(chunkX, chunkZ);
+            slimeCache.put(key, cached);
+        }
+        return cached;
+    }
     public Set<Identifier> enabledStructures() { return enabledStructures; }
 
     public void close() {

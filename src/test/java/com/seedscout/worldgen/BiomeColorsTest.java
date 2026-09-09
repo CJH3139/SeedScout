@@ -32,4 +32,12 @@ class BiomeColorsTest {
     void unknownBiomeFallsBackToGrey() {
         assertEquals(BiomeColors.UNKNOWN, BiomeColors.colorOf(Identifier.fromNamespaceAndPath("somemod", "weird")));
     }
+
+    @Test
+    void netherAndEndBiomesHaveColors() {
+        for (String path : List.of("nether_wastes", "soul_sand_valley", "crimson_forest", "warped_forest", "basalt_deltas",
+                "the_end", "small_end_islands", "end_midlands", "end_highlands", "end_barrens")) {
+            assertNotEquals(BiomeColors.UNKNOWN, BiomeColors.colorOf(Identifier.withDefaultNamespace(path)), path);
+        }
+    }
 }

@@ -1,40 +1,34 @@
 package com.seedscout.gui;
 
-import com.seedscout.worldgen.SeedWorld;
-import com.seedscout.worldgen.StructureHit;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidget.Entry> {
     private static final int ROW_HEIGHT = 22;
-    private final Consumer<StructureHit> onPick;
-    private final List<StructureHit> results = new ArrayList<>();
+
+    public record Row(String title, String subtitle, Identifier structureId, int color, Runnable onPick, Runnable onSecondary) {}
+
     private Component status = Component.empty();
 
-    public ResultsListWidget(Minecraft client, int width, int height, int y, Consumer<StructureHit> onPick) {
+    public ResultsListWidget(Minecraft client, int width, int height, int y) {
         super(client, width, height, y, ROW_HEIGHT);
-        this.onPick = onPick;
     }
 
-    public void setResults(List<StructureHit> hits) {
+    public void setRows(List<Row> rows, Component emptyText) {
         clearEntries();
-        results.clear();
-        results.addAll(hits);
-        for (StructureHit hit : hits) {
-            addEntry(new com.seedscout.gui.ResultsListWidget.Entry(hit));
+        for (Row row : rows) {
+            addEntry(new Entry(row));
         }
-        status = hits.isEmpty() ? Component.translatable("seedscout.screen.no_results") : Component.empty();
+        status = rows.isEmpty() ? emptyText : Component.empty();
     }
 
     public void setStatus(Component text) {
         clearEntries();
-        results.clear();
         status = text;
     }
 
@@ -51,32 +45,39 @@ public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidg
     @Override
     public void extractWidgetRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
         super.extractWidgetRenderState(context, mouseX, mouseY, deltaTicks);
-        if (results.isEmpty() && !status.getString().isEmpty()) {
+        if (children().isEmpty() && !status.getString().isEmpty()) {
             context.centeredText(minecraft.font, status, getX() + width / 2, getY() + 10, 0xFFBBBBBB);
         }
     }
 
-    public final class Entry extends ObjectSelectionList.Entry<com.seedscout.gui.ResultsListWidget.Entry> {
-        private final StructureHit hit;
+    public final class Entry extends ObjectSelectionList.Entry<Entry> {
+        private final Row row;
 
-        Entry(StructureHit hit) {
-            this.hit = hit;
+        Entry(Row row) {
+            this.row = row;
         }
 
         @Override
         public void extractContent(GuiGraphicsExtractor context, int mouseX, int mouseY, boolean hovered, float deltaTicks) {
             int x = getX() + 2;
             int y = getY() + 2;
-            String name = StructureIcons.displayName(SeedWorld.idOf(hit.structure()));
-            String coords = hit.blockX() + ", " + hit.blockZ() + "  " + Math.round(hit.distance()) + " m";
-            context.text(minecraft.font, name, x, y, hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
-            context.text(minecraft.font, coords, x, y + 10, 0xFFAAAAAA);
+            if (row.structureId() != null) {
+                StructureIcons.drawIcon(context, row.structureId(), x, y);
+            } else {
+                StructureIcons.drawSwatch(context, row.color(), x, y);
+            }
+            context.text(minecraft.font, row.title(), x + 20, y, hovered ? 0xFFFFFFFF : 0xFFE0E0E0);
+            context.text(minecraft.font, row.subtitle(), x + 20, y + 10, 0xFFAAAAAA);
         }
 
         @Override
         public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
             if (click.button() == 0) {
-                onPick.accept(hit);
+                row.onPick().run();
+                return true;
+            }
+            if (click.button() == 1 && row.onSecondary() != null) {
+                row.onSecondary().run();
                 return true;
             }
             return false;
@@ -84,7 +85,7 @@ public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidg
 
         @Override
         public Component getNarration() {
-            return Component.literal(StructureIcons.displayName(SeedWorld.idOf(hit.structure())));
+            return Component.literal(row.title());
         }
     }
 }

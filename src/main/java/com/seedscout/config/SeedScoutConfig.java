@@ -24,6 +24,16 @@ public final class SeedScoutConfig {
     public List<String> enabledStructures = new ArrayList<>();
     public int lastRadius = 5000;
     public boolean showBeam = true;
+    public boolean showSlimeChunks = false;
+    public Map<String, List<SavedWaypoint>> waypoints = new LinkedHashMap<>();
+
+    public static final class SavedWaypoint {
+        public String name;
+        public int x;
+        public int z;
+        public String structureId;
+        public String dimension;
+    }
 
     public static SeedScoutConfig defaults() {
         SeedScoutConfig config = new SeedScoutConfig();
@@ -54,6 +64,7 @@ public final class SeedScoutConfig {
             if (config.seeds == null) config.seeds = new LinkedHashMap<>();
             if (config.enabledStructures == null) config.enabledStructures = defaults().enabledStructures;
             if (config.lastRadius <= 0) config.lastRadius = 5000;
+            if (config.waypoints == null) config.waypoints = new LinkedHashMap<>();
             return config;
         } catch (IOException | JsonParseException e) {
             SeedScoutClient.LOGGER.warn("Could not read {}, using defaults", path, e);

@@ -112,4 +112,68 @@ class SeedWorldTest {
         Holder<Block> stoneEntry = BuiltInRegistries.BLOCK.wrapAsHolder(Blocks.STONE);
         assertTrue(stoneEntry.tags().findAny().isPresent(), "stone's registry entry should still carry at least one tag");
     }
+
+    @Test
+    void netherFixturesMatchDedicatedServerForSeed1() {
+        SeedWorld nether = SeedWorld.create(1L, Dimension.NETHER);
+        Holder<Structure> fortress = nether.structure(Identifier.withDefaultNamespace("fortress"));
+        StructureHit nearestFortress = nether.findStructures(fortress, new ChunkPos(0, 0), 10000 / 16, 1).get(0);
+        assertEquals(-96, nearestFortress.blockX());
+        assertEquals(144, nearestFortress.blockZ());
+
+        Holder<Structure> bastion = nether.structure(Identifier.withDefaultNamespace("bastion_remnant"));
+        StructureHit nearestBastion = nether.findStructures(bastion, new ChunkPos(0, 0), 10000 / 16, 1).get(0);
+        assertEquals(192, nearestBastion.blockX());
+        assertEquals(0, nearestBastion.blockZ());
+
+        StructureHit farBastion = nether.findStructures(bastion, new ChunkPos(5000 >> 4, 5000 >> 4), 10000 / 16, 1).get(0);
+        assertEquals(4800, farBastion.blockX());
+        assertEquals(5056, farBastion.blockZ());
+    }
+
+    @Test
+    void endCityFixtureMatchesDedicatedServerForSeed1() {
+        SeedWorld end = SeedWorld.create(1L, Dimension.END);
+        Holder<Structure> city = end.structure(Identifier.withDefaultNamespace("end_city"));
+        StructureHit nearest = end.findStructures(city, new ChunkPos(0, 0), 100000 / 16, 1).get(0);
+        assertEquals(-1168, nearest.blockX());
+        assertEquals(-240, nearest.blockZ());
+    }
+
+    @Test
+    void structureListsFollowTheDimension() {
+        List<String> nether = SeedWorld.create(1L, Dimension.NETHER).allStructures().stream().map(e -> SeedWorld.idOf(e).toString()).toList();
+        assertTrue(nether.contains("minecraft:fortress"));
+        assertTrue(nether.contains("minecraft:bastion_remnant"));
+        assertFalse(nether.contains("minecraft:village_plains"));
+        List<String> end = SeedWorld.create(1L, Dimension.END).allStructures().stream().map(e -> SeedWorld.idOf(e).toString()).toList();
+        assertEquals(List.of("minecraft:end_city"), end);
+        assertFalse(world.allStructures().stream().map(e -> SeedWorld.idOf(e).toString()).toList().contains("minecraft:fortress"));
+    }
+
+    @Test
+    void slimeChunksAreAboutTenPercent() {
+        int slime = 0;
+        for (int x = -50; x < 50; x++) {
+            for (int z = -50; z < 50; z++) {
+                if (world.isSlimeChunk(x, z)) slime++;
+            }
+        }
+        assertTrue(slime > 800 && slime < 1200, "slime chunks out of 10000: " + slime);
+        assertFalse(SeedWorld.create(1L, Dimension.NETHER).isSlimeChunk(0, 0));
+    }
+
+    @Test
+    void biomeSearchFindsNearestPlainsSorted() {
+        List<BiomeHit> hits = world.findBiome(world.biome(Identifier.withDefaultNamespace("plains")), 0, 0, 5000, 10);
+        assertFalse(hits.isEmpty());
+        for (BiomeHit hit : hits) {
+            assertEquals("minecraft:plains", SeedWorld.idOf(world.biomeAt(hit.blockX(), hit.blockZ())).toString());
+            assertTrue(hit.distance() <= 5000 * 1.5);
+        }
+        for (int i = 1; i < hits.size(); i++) {
+            assertTrue(hits.get(i - 1).distance() <= hits.get(i).distance());
+        }
+        assertTrue(world.allBiomes().stream().map(SeedWorld::idOf).map(Identifier::toString).toList().contains("minecraft:plains"));
+    }
 }
