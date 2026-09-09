@@ -7,7 +7,8 @@ public record TileKey(int lod, int tileX, int tileZ) {
     public static final int TILE_PIXELS = 128;
 
     public static final int MAX_TILES_PER_VIEW = 512;
-    private static final int[] BLOCKS_PER_PIXEL = {4, 16, 64};
+    private static final int[] BLOCKS_PER_PIXEL = {4, 8, 16, 32, 64, 128};
+    private static final double LEVEL_SWITCH = Math.sqrt(2.0);
     public static final int LOD_COUNT = BLOCKS_PER_PIXEL.length;
 
     public static int blocksPerPixel(int lod) {
@@ -33,10 +34,8 @@ public record TileKey(int lod, int tileX, int tileZ) {
 
     public static int lodForScale(double blocksPerScreenPixel) {
         int lod = 0;
-        for (int i = 0; i < LOD_COUNT; i++) {
-            if (BLOCKS_PER_PIXEL[i] <= blocksPerScreenPixel) {
-                lod = i;
-            }
+        while (lod < LOD_COUNT - 1 && BLOCKS_PER_PIXEL[lod] * LEVEL_SWITCH < blocksPerScreenPixel) {
+            lod++;
         }
         return lod;
     }

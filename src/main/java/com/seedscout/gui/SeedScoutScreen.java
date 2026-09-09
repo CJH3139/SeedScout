@@ -600,7 +600,7 @@ public class SeedScoutScreen extends Screen {
                 viewport.minBlockX(), viewport.minBlockZ(), viewport.maxBlockX(), viewport.maxBlockZ(),
                 session.enabledStructures());
         context.enableScissor(viewport.left, viewport.top, viewport.left + viewport.width, viewport.top + viewport.height);
-        boolean dots = viewport.lod() >= 2;
+        boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;
         for (RegionHit hit : hits) {
             int sx = (int) Math.round(viewport.worldToScreenX(hit.blockX()));
             int sy = (int) Math.round(viewport.worldToScreenZ(hit.blockZ()));
@@ -619,7 +619,7 @@ public class SeedScoutScreen extends Screen {
             context.fill(sx - r, sy + r - 2, sx + r, sy + r, 0xFFFFD700);
             context.fill(sx - r, sy - r, sx - r + 2, sy + r, 0xFFFFD700);
             context.fill(sx + r - 2, sy - r, sx + r, sy + r, 0xFFFFD700);
-            if (viewport.lod() >= 2 || hit.structureId() == null) {
+            if (TileKey.blocksPerPixel(viewport.lod()) >= 64 || hit.structureId() == null) {
                 context.fill(sx - 3, sy - 3, sx + 3, sy + 3, hit.color());
             } else {
                 StructureIcons.drawIcon(context, hit.structureId(), sx - 8, sy - 8);
@@ -679,7 +679,7 @@ public class SeedScoutScreen extends Screen {
         if (!viewport.contains(click.x(), click.y()) || session == null) {
             return false;
         }
-        if (click.button() == 0 && viewport.lod() < 2) {
+        if (click.button() == 0 && TileKey.blocksPerPixel(viewport.lod()) < 64) {
             List<RegionHit> hits = session.structures().query(
                     viewport.minBlockX(), viewport.minBlockZ(), viewport.maxBlockX(), viewport.maxBlockZ(),
                     session.enabledStructures());

@@ -9,6 +9,10 @@ public final class TilePixels {
     private TilePixels() {}
 
     public static int[] render(TileKey key, ColorSampler sampler) {
+        return render(key, sampler, () -> false);
+    }
+
+    public static int[] render(TileKey key, ColorSampler sampler, java.util.function.BooleanSupplier cancelled) {
         int size = TileKey.TILE_PIXELS;
         int bpp = TileKey.blocksPerPixel(key.lod());
         int half = bpp / 2;
@@ -16,6 +20,9 @@ public final class TilePixels {
         int originZ = key.originZ();
         int[] pixels = new int[size * size];
         for (int pz = 0; pz < size; pz++) {
+            if (cancelled.getAsBoolean()) {
+                return null;
+            }
             int blockZ = originZ + pz * bpp + half;
             int row = pz * size;
             for (int px = 0; px < size; px++) {

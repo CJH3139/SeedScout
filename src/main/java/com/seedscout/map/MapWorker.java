@@ -26,12 +26,15 @@ public final class MapWorker {
         }
     }
 
+    private static final int WORKERS = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
+
     private static final ThreadPoolExecutor EXECUTOR = new ThreadPoolExecutor(
-            2, 2, 0L, TimeUnit.MILLISECONDS,
+            WORKERS, WORKERS, 0L, TimeUnit.MILLISECONDS,
             new PriorityBlockingQueue<>(),
             runnable -> {
                 Thread thread = new Thread(runnable, "SeedScout-worker");
                 thread.setDaemon(true);
+                thread.setPriority(Math.max(Thread.MIN_PRIORITY, Thread.NORM_PRIORITY - 1));
                 return thread;
             });
 

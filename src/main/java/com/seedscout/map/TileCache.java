@@ -91,7 +91,13 @@ public final class TileCache {
         }
         NativeImage image = null;
         try {
-            int[] pixels = TilePixels.render(key, sampler);
+            int[] pixels = TilePixels.render(key, sampler, () -> gen != generation || !visible.contains(key));
+            if (pixels == null) {
+                client.execute(() -> {
+                    if (gen == generation) entries.remove(key);
+                });
+                return;
+            }
             image = new NativeImage(TileKey.TILE_PIXELS, TileKey.TILE_PIXELS, false);
             for (int pz = 0; pz < TileKey.TILE_PIXELS; pz++) {
                 for (int px = 0; px < TileKey.TILE_PIXELS; px++) {

@@ -3,7 +3,7 @@ package com.seedscout.map;
 public final class MapViewport {
     public static final double MIN_SCALE = 0.25;
 
-    public static final double MAX_SCALE = 64.0;
+    public static final double MAX_SCALE = 128.0;
 
     public int left;
     public int top;
