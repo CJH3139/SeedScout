@@ -6,3 +6,8 @@ pluginManagement {
     }
 }
 rootProject.name = 'seedscout'
+
+file('versions').eachDir { dir ->
+    include ":${dir.name}"
+    project(":${dir.name}").projectDir = dir
+}

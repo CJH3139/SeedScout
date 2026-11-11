@@ -1,29 +1,19 @@
 package com.seedscout.waypoint;
 
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.seedscout.SeedScoutClient;
+import com.seedscout.compat.Compat;
 import com.seedscout.gui.StructureIcons;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 
 public final class BeamRenderer {
-    private static final RenderPipeline PIPELINE = RenderPipelines.register(
-            RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
-                    .withLocation(Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "pipeline/beam"))
-                    .withCull(false)
-                    .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
-                    .build());
-    private static final RenderType LAYER = RenderType.create("seedscout_beam",
-            RenderSetup.builder(PIPELINE).sortOnUpload().createRenderSetup());
+    private static final RenderType LAYER = Compat.seeThroughLayer(
+            Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "pipeline/beam"), "seedscout_beam");
 
     private static final float HALF_WIDTH = 0.5f;
     private static final float MIN_Y = -64f;

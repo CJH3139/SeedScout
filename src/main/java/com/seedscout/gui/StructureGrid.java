@@ -1,5 +1,6 @@
 package com.seedscout.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -74,14 +75,14 @@ public final class StructureGrid {
     }
 
     public boolean mouseClicked(double mx, double my, int button) {
-        if (button != 0 && button != 1) return false;
+        if (button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT) return false;
         if (mx < x || my < y || mx >= x + columns * CELL || my >= y + height()) return false;
         int col = (int) ((mx - x) / CELL);
         int row = (int) ((my - y) / CELL);
         int index = row * columns + col;
         if (col >= columns || index >= ids.size()) return false;
         Identifier id = ids.get(index);
-        if (button == 1) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
             onSelect.accept(id);
             return true;
         }

@@ -1,52 +1,79 @@
 plugins {
-    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
 }
 
-version = project.mod_version
-group = project.maven_group
+// Each directory in versions/ is a Minecraft version. It compiles the shared sources in src/
+// plus its own src/ (the com.seedscout.compat classes) into a jar for that version.
+subprojects {
+    apply plugin: 'net.fabricmc.fabric-loom'
 
-base {
-    archivesName = project.archives_base_name
-}
+    version = "${rootProject.mod_version}+${project.minecraft_version}"
+    group = rootProject.maven_group
 
-repositories {
-    mavenCentral()
-}
+    base {
+        archivesName = rootProject.archives_base_name
+    }
 
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    repositories {
+        mavenCentral()
+    }
 
-    testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
-    testImplementation platform("org.junit:junit-bom:5.11.4")
-    testImplementation "org.junit.jupiter:junit-jupiter"
-    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-}
+    sourceSets {
+        main {
+            java.srcDirs = [rootProject.file('src/main/java'), file('src/main/java')]
+            resources.srcDirs = [rootProject.file('src/main/resources')]
+        }
+        test {
+            java.srcDirs = [rootProject.file('src/test/java')]
+            resources.srcDirs = [rootProject.file('src/test/resources')]
+        }
+    }
 
-processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
+    dependencies {
+        minecraft "com.mojang:minecraft:${project.minecraft_version}"
+        implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+        testImplementation "net.fabricmc:fabric-loader-junit:${rootProject.loader_version}"
+        testImplementation platform("org.junit:junit-bom:5.11.4")
+        testImplementation "org.junit.jupiter:junit-jupiter"
+        testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    }
+
+    processResources {
+        def props = [version: project.version, minecraft_dependency: project.minecraft_dependency]
+        inputs.properties props
+        filesMatching("fabric.mod.json") {
+            expand props
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        it.options.release = 25
+        it.options.encoding = "UTF-8"
+    }
+
+    java {
+        withSourcesJar()
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
+    }
+
+    test {
+        useJUnitPlatform()
+        maxHeapSize = "3G"
+        testLogging {
+            events "passed", "failed", "skipped"
+            exceptionFormat "full"
+        }
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
-    it.options.encoding = "UTF-8"
-}
-
-java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
-}
-
-test {
-    useJUnitPlatform()
-    maxHeapSize = "3G"
-    testLogging {
-        events "passed", "failed", "skipped"
-        exceptionFormat "full"
+// Copies every version's jar into build/libs so they are all in one place.
+tasks.register('collectJars', Copy) {
+    dependsOn subprojects.collect { "${it.path}:assemble" }
+    from(subprojects.collect { it.layout.buildDirectory.dir('libs') }) {
+        exclude '*-sources.jar'
     }
+    into layout.buildDirectory.dir('libs')
 }

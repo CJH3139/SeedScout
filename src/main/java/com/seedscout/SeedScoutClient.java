@@ -1,6 +1,7 @@
 package com.seedscout;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.seedscout.compat.Compat;
 import com.seedscout.config.SeedScoutConfig;
 import com.seedscout.gui.SeedScoutScreen;
 import com.seedscout.map.MapWorker;
@@ -17,7 +18,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +27,7 @@ public final class SeedScoutClient implements ClientModInitializer {
 
     public static final KeyMapping OPEN_MAP = new KeyMapping(
             "key.seedscout.open_map",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_Y,
+            InputConstants.KEY_Y,
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "seedscout")));
 
     private static SeedScoutConfig config;
@@ -55,10 +54,10 @@ public final class SeedScoutClient implements ClientModInitializer {
             WaypointState.tick(client);
             while (OPEN_MAP.consumeClick()) {
                 if (client.player == null) continue;
-                if (client.gui.screen() instanceof SeedScoutScreen) {
-                    client.gui.setScreen(null);
+                if (Compat.screen(client) instanceof SeedScoutScreen) {
+                    Compat.setScreen(client, null);
                 } else {
-                    client.gui.setScreen(new SeedScoutScreen(client));
+                    Compat.setScreen(client, new SeedScoutScreen(client));
                 }
             }
         });

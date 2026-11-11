@@ -1,5 +1,6 @@
 package com.seedscout.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -56,7 +57,7 @@ public final class ContextMenu {
 
     public boolean mouseClicked(double mx, double my, int button) {
         if (!contains(mx, my)) return false;
-        if (button != 0) return true;
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) return true;
         for (int i = 0; i < items.size(); i++) {
             int top = itemTop(i);
             if (my >= top && my < top + ITEM_H) {

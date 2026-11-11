@@ -1,5 +1,6 @@
 package com.seedscout.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -66,7 +67,7 @@ public final class SegmentedControl {
     }
 
     public boolean mouseClicked(double mx, double my, int button) {
-        if (button != 0 || mx < x || mx >= x + width || my < y || my >= y + height) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT || mx < x || mx >= x + width || my < y || my >= y + height) {
             return false;
         }
         for (int i = 0; i < segments.size(); i++) {

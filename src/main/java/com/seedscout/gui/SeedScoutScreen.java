@@ -1,6 +1,8 @@
 package com.seedscout.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.seedscout.SeedScoutClient;
+import com.seedscout.compat.Compat;
 import com.seedscout.config.SeedParser;
 import com.seedscout.config.SeedScoutConfig;
 import com.seedscout.map.CoordinateParser;
@@ -37,7 +39,6 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.ChunkPos;
-import org.lwjgl.glfw.GLFW;
 
 public class SeedScoutScreen extends Screen {
     protected static final int BACKGROUND = 0xFF101418;
@@ -516,7 +517,7 @@ public class SeedScoutScreen extends Screen {
                 minecraft.execute(() -> {
                     if (session != current) return;
                     searching = false;
-                    if (minecraft.gui.screen() instanceof SeedScoutScreen s) {
+                    if (Compat.screen(minecraft) instanceof SeedScoutScreen s) {
                         s.resultsList.setStatus(Component.translatable("seedscout.screen.search_failed"));
                         s.searchButton.active = true;
                     }
@@ -527,7 +528,7 @@ public class SeedScoutScreen extends Screen {
                 if (session != current) return;
                 searching = false;
                 lastResults = results;
-                if (minecraft.gui.screen() instanceof SeedScoutScreen s) {
+                if (Compat.screen(minecraft) instanceof SeedScoutScreen s) {
                     s.refreshList();
                     s.searchButton.active = true;
                 }
@@ -624,7 +625,7 @@ public class SeedScoutScreen extends Screen {
                     session = fresh;
                     lastResults = List.of();
                     searching = false;
-                    if (minecraft.gui.screen() instanceof SeedScoutScreen screen) {
+                    if (Compat.screen(minecraft) instanceof SeedScoutScreen screen) {
                         screen.buildPanel();
                     }
                     sessionLoading = false;
@@ -643,7 +644,7 @@ public class SeedScoutScreen extends Screen {
                     errorKey = key;
                     lastResults = List.of();
                     searching = false;
-                    if (minecraft.gui.screen() instanceof SeedScoutScreen screen) {
+                    if (Compat.screen(minecraft) instanceof SeedScoutScreen screen) {
                         screen.buildPanel();
                     }
                     sessionLoading = false;
@@ -1081,7 +1082,7 @@ public class SeedScoutScreen extends Screen {
         if (!viewport.contains(click.x(), click.y()) || session == null) {
             return false;
         }
-        if (click.button() == 0 && click.hasShiftDown()) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT && click.hasShiftDown()) {
             measuring = true;
             hasMeasurement = true;
             measureStartX = viewport.screenToWorldX(click.x());
@@ -1090,7 +1091,7 @@ public class SeedScoutScreen extends Screen {
             measureEndZ = measureStartZ;
             return true;
         }
-        if (click.button() == 0) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             hasMeasurement = false;
             boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;
             MarkerClusterer.Cluster<MapMarker> cluster = clusterAt(click.x(), click.y());
@@ -1106,7 +1107,7 @@ public class SeedScoutScreen extends Screen {
                 return true;
             }
         }
-        if (click.button() == 1) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
             MarkerClusterer.Cluster<MapMarker> cluster = clusterAt(click.x(), click.y());
             if (cluster != null && cluster.size() == 1) {
                 MapMarker marker = cluster.members().get(0);
@@ -1119,7 +1120,7 @@ public class SeedScoutScreen extends Screen {
             openPointMenu((int) click.x(), (int) click.y(), bx, bz);
             return true;
         }
-        if (click.button() == 0) {
+        if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             dragging = true;
             return true;
         }
@@ -1135,12 +1136,12 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY) {
-        if (measuring && click.button() == 0) {
+        if (measuring && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             measureEndX = viewport.screenToWorldX(click.x());
             measureEndZ = viewport.screenToWorldZ(click.y());
             return true;
         }
-        if (dragging && click.button() == 0) {
+        if (dragging && click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
             viewport.pan(offsetX, offsetY);
             return true;
         }
@@ -1174,7 +1175,7 @@ public class SeedScoutScreen extends Screen {
             closePicker();
             return true;
         }
-        if (goField != null && goField.isFocused() && (input.key() == GLFW.GLFW_KEY_ENTER || input.key() == GLFW.GLFW_KEY_KP_ENTER)) {
+        if (goField != null && goField.isFocused() && (input.key() == InputConstants.KEY_RETURN || input.key() == InputConstants.KEY_NUMPADENTER)) {
             goToTyped();
             return true;
         }

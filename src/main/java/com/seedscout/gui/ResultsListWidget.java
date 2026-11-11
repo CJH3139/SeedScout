@@ -1,5 +1,6 @@
 package com.seedscout.gui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -72,11 +73,11 @@ public final class ResultsListWidget extends ObjectSelectionList<ResultsListWidg
 
         @Override
         public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-            if (click.button() == 0) {
+            if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                 row.onPick().run();
                 return true;
             }
-            if (click.button() == 1 && row.onSecondary() != null) {
+            if (click.button() == InputConstants.MOUSE_BUTTON_RIGHT && row.onSecondary() != null) {
                 row.onSecondary().run();
                 return true;
             }
