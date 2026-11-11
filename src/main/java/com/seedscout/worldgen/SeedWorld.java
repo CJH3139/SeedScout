@@ -21,7 +21,9 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.packs.PackResources;
 import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.ChunkPos;
@@ -65,6 +67,7 @@ public final class SeedWorld {
     public static final int SURFACE_Y = 64;
     public static final int MAX_FEATURE_CHUNKS = 250000;
     public static final String VANILLA_PROFILE = "vanilla";
+    private static final List<String> WORLDGEN_DIRS = List.of("worldgen", "dimension", "dimension_type");
 
     private static final Field JIGSAW_START_HEIGHT = field(JigsawStructure.class, "startHeight");
     private static final Field JIGSAW_PROJECTION = field(JigsawStructure.class, "projectStartToHeightmap");
@@ -137,10 +140,38 @@ public final class SeedWorld {
                 chunks.randomState(), chunks.getGeneratorState(), profileOf(server));
     }
 
+    private static boolean changesWorldgen(Pack pack) {
+        List<PackResources> opened;
+        try {
+            opened = Compat.openPack(pack);
+        } catch (RuntimeException e) {
+            return true;
+        }
+        try {
+            for (PackResources resources : opened) {
+                for (String namespace : resources.getNamespaces(PackType.SERVER_DATA)) {
+                    for (String dir : WORLDGEN_DIRS) {
+                        boolean[] found = {false};
+                        resources.listResources(PackType.SERVER_DATA, namespace, dir, (id, supplier) -> found[0] = true);
+                        if (found[0]) return true;
+                    }
+                }
+            }
+            return false;
+        } catch (RuntimeException e) {
+            return true;
+        } finally {
+            opened.forEach(PackResources::close);
+        }
+    }
+
     public static String profileOf(MinecraftServer server) {
-        List<String> packs = new ArrayList<>(server.getPackRepository().getSelectedIds());
-        packs.remove("vanilla");
-        packs.removeIf(id -> id.startsWith("fabric"));
+        List<String> packs = new ArrayList<>();
+        for (Pack pack : server.getPackRepository().getSelectedPacks()) {
+            if (!pack.getId().equals("vanilla") && changesWorldgen(pack)) {
+                packs.add(pack.getId());
+            }
+        }
         if (packs.isEmpty()) {
             return VANILLA_PROFILE;
         }

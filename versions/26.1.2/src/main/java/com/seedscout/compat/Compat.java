@@ -18,6 +18,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.packs.PackResources;
+import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.ServerPacksSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biome;
@@ -30,6 +31,12 @@ import net.minecraft.world.level.levelgen.placement.PlacementModifier;
 
 /** Minecraft 26.1 implementations of the calls that differ between supported versions. */
 public final class Compat {
+    public static final RenderPipeline SEE_THROUGH = RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.fromNamespaceAndPath("seedscout", "pipeline/beam"))
+            .withCull(false)
+            .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
+            .build();
+
     private Compat() {}
 
     public static Screen screen(Minecraft client) {
@@ -46,6 +53,10 @@ public final class Compat {
 
     public static List<RegistryDataLoader.RegistryData<?>> worldRegistries() {
         return RegistryDataLoader.WORLDGEN_REGISTRIES;
+    }
+
+    public static List<PackResources> openPack(Pack pack) {
+        return List.of(pack.open());
     }
 
     public static PackResources vanillaPack() {
@@ -76,13 +87,7 @@ public final class Compat {
         modifier.getPositions(context, random, pos).forEach(out);
     }
 
-    public static RenderType seeThroughLayer(Identifier location, String name) {
-        RenderPipeline pipeline = RenderPipelines.register(
-                RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
-                        .withLocation(location)
-                        .withCull(false)
-                        .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
-                        .build());
-        return RenderType.create(name, RenderSetup.builder(pipeline).sortOnUpload().createRenderSetup());
+    public static RenderType seeThroughLayer(String name) {
+        return RenderType.create(name, RenderSetup.builder(SEE_THROUGH).sortOnUpload().createRenderSetup());
     }
 }

@@ -1,17 +1,22 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+    id 'net.neoforged.moddev' version "${moddev_version}" apply false
 }
 
-// Each directory in versions/ is a Minecraft version. It compiles the shared sources in src/
-// plus its own src/ (the com.seedscout.compat classes) into a jar for that version.
-subprojects {
-    apply plugin: 'net.fabricmc.fabric-loom'
+subprojects { p ->
+    if (p.parent == rootProject) return
 
-    version = "${rootProject.mod_version}+${project.minecraft_version}"
+    def loader = p.name
+    def versionDir = p.parent.projectDir
+
+    apply plugin: 'java'
+    apply plugin: loader == 'fabric' ? 'net.fabricmc.fabric-loom' : 'net.neoforged.moddev'
+
+    version = "${rootProject.mod_version}+${p.minecraft_version}"
     group = rootProject.maven_group
 
     base {
-        archivesName = rootProject.archives_base_name
+        archivesName = "${rootProject.archives_base_name}-${loader}"
     }
 
     repositories {
@@ -20,30 +25,24 @@ subprojects {
 
     sourceSets {
         main {
-            java.srcDirs = [rootProject.file('src/main/java'), file('src/main/java')]
-            resources.srcDirs = [rootProject.file('src/main/resources')]
-        }
-        test {
-            java.srcDirs = [rootProject.file('src/test/java')]
-            resources.srcDirs = [rootProject.file('src/test/resources')]
+            java.srcDirs = [
+                    rootProject.file('src/main/java'),
+                    new File(versionDir, 'src/main/java'),
+                    rootProject.file("${loader}/src/main/java")
+            ]
+            resources.srcDirs = [rootProject.file('src/main/resources'), rootProject.file("${loader}/src/main/resources")]
         }
     }
 
-    dependencies {
-        minecraft "com.mojang:minecraft:${project.minecraft_version}"
-        implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
-        implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-        testImplementation "net.fabricmc:fabric-loader-junit:${rootProject.loader_version}"
-        testImplementation platform("org.junit:junit-bom:5.11.4")
-        testImplementation "org.junit.jupiter:junit-jupiter"
-        testRuntimeOnly "org.junit.platform:junit-platform-launcher"
-    }
-
+    def props = [
+            version                 : p.version,
+            minecraft_dependency    : p.minecraft_dependency,
+            neoforge_min            : p.neoforge_min,
+            neoforge_minecraft_range: p.neoforge_minecraft_range
+    ]
     processResources {
-        def props = [version: project.version, minecraft_dependency: project.minecraft_dependency]
         inputs.properties props
-        filesMatching("fabric.mod.json") {
+        filesMatching(['fabric.mod.json', 'META-INF/neoforge.mods.toml']) {
             expand props
         }
     }
@@ -59,20 +58,54 @@ subprojects {
         targetCompatibility = JavaVersion.VERSION_25
     }
 
-    test {
-        useJUnitPlatform()
-        maxHeapSize = "3G"
-        testLogging {
-            events "passed", "failed", "skipped"
-            exceptionFormat "full"
+    if (loader == 'fabric') {
+        sourceSets {
+            test {
+                java.srcDirs = [rootProject.file('src/test/java')]
+                resources.srcDirs = [rootProject.file('src/test/resources')]
+            }
+        }
+
+        dependencies {
+            minecraft "com.mojang:minecraft:${p.minecraft_version}"
+            implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+            implementation "net.fabricmc.fabric-api:fabric-api:${p.fabric_version}"
+
+            testImplementation "net.fabricmc:fabric-loader-junit:${rootProject.loader_version}"
+            testImplementation platform("org.junit:junit-bom:5.11.4")
+            testImplementation "org.junit.jupiter:junit-jupiter"
+            testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+        }
+
+        test {
+            useJUnitPlatform()
+            maxHeapSize = "3G"
+            testLogging {
+                events "passed", "failed", "skipped"
+                exceptionFormat "full"
+            }
+        }
+    } else {
+        neoForge {
+            version = p.neoforge_version
+            runs {
+                client {
+                    client()
+                }
+            }
+            mods {
+                seedscout {
+                    sourceSet(sourceSets.main)
+                }
+            }
         }
     }
 }
 
-// Copies every version's jar into build/libs so they are all in one place.
 tasks.register('collectJars', Copy) {
-    dependsOn subprojects.collect { "${it.path}:assemble" }
-    from(subprojects.collect { it.layout.buildDirectory.dir('libs') }) {
+    def loaderProjects = subprojects.findAll { it.parent != rootProject }
+    dependsOn loaderProjects.collect { "${it.path}:assemble" }
+    from(loaderProjects.collect { it.layout.buildDirectory.dir('libs') }) {
         exclude '*-sources.jar'
     }
     into layout.buildDirectory.dir('libs')

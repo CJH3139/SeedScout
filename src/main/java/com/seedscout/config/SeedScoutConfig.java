@@ -14,10 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import net.fabricmc.loader.api.FabricLoader;
 
 public final class SeedScoutConfig {
-    public static final Path DEFAULT_PATH = FabricLoader.getInstance().getConfigDir().resolve("seedscout.json");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public Map<String, String> seeds = new LinkedHashMap<>();

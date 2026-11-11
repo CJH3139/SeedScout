@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureManager;
@@ -103,7 +102,7 @@ public final class MapSession {
     }
 
     private static Path cacheRoot() {
-        return FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("tiles");
+        return SeedScoutClient.gameDir().resolve("seedscout").resolve("tiles");
     }
 
     private TileCache openTiles() {

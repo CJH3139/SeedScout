@@ -8,7 +8,7 @@
   "license": "Apache-2.0",
   "environment": "client",
   "entrypoints": {
-    "client": ["com.seedscout.SeedScoutClient"]
+    "client": ["com.seedscout.fabric.SeedScoutFabric"]
   },
   "depends": {
     "fabricloader": ">=0.19.5",

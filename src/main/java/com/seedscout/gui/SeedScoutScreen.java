@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Set;
-import net.fabricmc.loader.api.FabricLoader;
 import com.seedscout.worldgen.Dimension;
 import com.seedscout.worldgen.RegionHit;
 import com.seedscout.worldgen.SeedSource;
@@ -317,7 +316,7 @@ public class SeedScoutScreen extends Screen {
         }
         WaypointState.get().filter(wp -> wp.dimension().equals(session.dimension().levelId()))
                 .ifPresent(wp -> dots.add(new MapExporter.Dot(wp.x(), wp.z(), 0xFFFF4040, 3)));
-        Path dir = FabricLoader.getInstance().getGameDir().resolve("seedscout").resolve("exports");
+        Path dir = SeedScoutClient.gameDir().resolve("seedscout").resolve("exports");
         String base = "seedscout_" + session.seed() + "_" + session.dimension().name().toLowerCase(Locale.ROOT)
                 + "_" + (int) Math.floor(viewport.centerX) + "_" + (int) Math.floor(viewport.centerZ);
         try {

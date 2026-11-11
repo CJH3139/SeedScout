@@ -1,6 +1,7 @@
 pluginManagement {
     repositories {
         maven { name = 'Fabric'; url = 'https://maven.fabricmc.net/' }
+        maven { name = 'NeoForged'; url = 'https://maven.neoforged.net/releases' }
         mavenCentral()
         gradlePluginPortal()
     }
@@ -10,4 +11,8 @@ rootProject.name = 'seedscout'
 file('versions').eachDir { dir ->
     include ":${dir.name}"
     project(":${dir.name}").projectDir = dir
+    ['fabric', 'neoforge'].each { loader ->
+        include ":${dir.name}:${loader}"
+        project(":${dir.name}:${loader}").projectDir = new File(dir, loader)
+    }
 }

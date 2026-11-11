@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="Apache-2.0"
+
+[[mods]]
+modId="seedscout"
+version="${version}"
+displayName="SeedScout"
+authors="roych"
+description='''Chunkbase-style seed map, structure search and waypoints inside the client.'''
+
+[[dependencies.seedscout]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_min},)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.seedscout]]
+modId="minecraft"
+type="required"
+versionRange="${neoforge_minecraft_range}"
+ordering="NONE"
+side="CLIENT"

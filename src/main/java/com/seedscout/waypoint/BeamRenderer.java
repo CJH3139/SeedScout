@@ -5,15 +5,14 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.seedscout.SeedScoutClient;
 import com.seedscout.compat.Compat;
 import com.seedscout.gui.StructureIcons;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 
 public final class BeamRenderer {
-    private static final RenderType LAYER = Compat.seeThroughLayer(
-            Identifier.fromNamespaceAndPath(SeedScoutClient.MOD_ID, "pipeline/beam"), "seedscout_beam");
+    private static final RenderType LAYER = Compat.seeThroughLayer("seedscout_beam");
 
     private static final float HALF_WIDTH = 0.5f;
     private static final float MIN_Y = -64f;
@@ -21,17 +20,14 @@ public final class BeamRenderer {
 
     private BeamRenderer() {}
 
-    public static void init() {}
-
-    public static void render(LevelRenderContext context) {
+    public static void render(PoseStack poseStack, SubmitNodeCollector collector, LevelRenderState levelState) {
         if (!SeedScoutClient.config().showBeam) return;
         Waypoint waypoint = WaypointState.get().orElse(null);
         if (waypoint == null) return;
         if (!WaypointState.playerInDimension(Minecraft.getInstance(), waypoint)) return;
-        PoseStack poseStack = context.poseStack();
-        if (poseStack == null || context.submitNodeCollector() == null) return;
+        if (poseStack == null || collector == null) return;
 
-        Vec3 camera = context.levelState().cameraRenderState.pos;
+        Vec3 camera = levelState.cameraRenderState.pos;
         float cx = (float) (waypoint.x() + 0.5 - camera.x);
         float cz = (float) (waypoint.z() + 0.5 - camera.z);
         float y0 = (float) (MIN_Y - camera.y);
@@ -44,7 +40,7 @@ public final class BeamRenderer {
         int a = 110;
 
         poseStack.pushPose();
-        context.submitNodeCollector().submitCustomGeometry(poseStack, LAYER, (pose, vc) -> {
+        collector.submitCustomGeometry(poseStack, LAYER, (pose, vc) -> {
             quad(vc, pose, cx - HALF_WIDTH, cz, cx + HALF_WIDTH, cz, y0, y1, r, g, b, a);
             quad(vc, pose, cx, cz - HALF_WIDTH, cx, cz + HALF_WIDTH, y0, y1, r, g, b, a);
         });

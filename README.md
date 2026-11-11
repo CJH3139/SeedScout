@@ -1,6 +1,6 @@
 # SeedScout
 
-Chunkbase inside Minecraft. A client-side Fabric mod for Minecraft 26.1, 26.2 and 26.3 that shows the seed map of your world, finds structures and biomes, and guides you there with a HUD arrow and a beam.
+Chunkbase inside Minecraft. A client-side Fabric and NeoForge mod for Minecraft 26.1, 26.2 and 26.3 that shows the seed map of your world, finds structures and biomes, and guides you there with a HUD arrow and a beam.
 
 <img width="3840" height="2091" alt="image" src="https://github.com/user-attachments/assets/57fe846b-215c-485f-b10b-01a9db424394" />
 
@@ -15,7 +15,7 @@ Chunkbase inside Minecraft. A client-side Fabric mod for Minecraft 26.1, 26.2 an
 
 ## Usage
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for your Minecraft version (26.1, 26.2 or 26.3) with [Fabric API](https://modrinth.com/mod/fabric-api), then drop the matching SeedScout jar (`seedscout-<version>+<minecraft>.jar`) in `mods`.
+1. Install [Fabric Loader](https://fabricmc.net/use/) with [Fabric API](https://modrinth.com/mod/fabric-api), or [NeoForge](https://neoforged.net/), for your Minecraft version (26.1, 26.2 or 26.3). Drop the matching SeedScout jar (`seedscout-<loader>-<version>+<minecraft>.jar`) in `mods`.
 2. Press `Y` in a world to open the map. Singleplayer reads the seed itself; on a server, type it in the panel and click Apply.
 3. Left-click icons in the structure grid to show or hide a type, right-click one to make it the search target. Pick a radius and click Search.
 4. Click a result or a map icon to set a waypoint and close the map. Right-click anything for more: waypoint, copy, share in chat, teleport.
@@ -29,9 +29,9 @@ Requires JDK 25.
 ./gradlew build
 ```
 
-This builds one jar per Minecraft version. `./gradlew collectJars` copies them all into `build/libs`; each version's jar is also in `versions/<minecraft>/build/libs`. Build or run a single version with `./gradlew :26.3:build` or `./gradlew :26.3:runClient`.
+This builds a Fabric and a NeoForge jar for each Minecraft version. `./gradlew collectJars` copies them all into `build/libs`. Build or run one with `./gradlew :26.3:fabric:build` or `./gradlew :26.3:neoforge:runClient`.
 
-Shared code lives in `src/`. Each folder in `versions/` sets its Minecraft and Fabric API versions in `gradle.properties` and holds a `com.seedscout.compat.Compat` class for the few calls that differ between versions. To add a version, copy the closest folder, update its `gradle.properties`, and fix `Compat` until `./gradlew :<version>:test` passes.
+Shared code lives in `src/`, and the loader entry points in `fabric/` and `neoforge/`. Each folder in `versions/` sets its Minecraft, Fabric API and NeoForge versions in `gradle.properties` and holds a `com.seedscout.compat.Compat` class for the few calls that differ between Minecraft versions. To add a version, copy the closest folder, update its `gradle.properties`, and fix `Compat` until `./gradlew :<version>:fabric:test` and `./gradlew :<version>:neoforge:build` pass.
 
 The 1.21.11 version lives on the `1.21.11` branch.
 
