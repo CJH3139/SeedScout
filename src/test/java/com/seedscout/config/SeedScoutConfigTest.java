@@ -17,12 +17,14 @@ class SeedScoutConfigTest {
         config.putSeed("play.example.net", "123");
         config.lastRadius = 10000;
         config.showBeam = false;
+        config.guiScale = 2;
         config.save(file);
 
         SeedScoutConfig loaded = SeedScoutConfig.load(file);
         assertEquals("123", loaded.seedFor("play.example.net").orElseThrow());
         assertEquals(10000, loaded.lastRadius);
         assertEquals(false, loaded.showBeam);
+        assertEquals(2, loaded.guiScale);
         assertEquals(config.enabledStructures, loaded.enabledStructures);
     }
 
@@ -54,5 +56,19 @@ class SeedScoutConfigTest {
         SeedScoutConfig loaded = SeedScoutConfig.load(file);
         assertEquals(5000, loaded.lastRadius);
         assertEquals("{ this is not json", Files.readString(file));
+    }
+
+    @Test
+    void olderConfigWithoutGuiScaleFollowsGameScale(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("seedscout.json");
+        Files.writeString(file, "{ \"lastRadius\": 3000 }");
+        assertEquals(0, SeedScoutConfig.load(file).guiScale);
+    }
+
+    @Test
+    void negativeGuiScaleIsReset(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("seedscout.json");
+        Files.writeString(file, "{ \"guiScale\": -3 }");
+        assertEquals(0, SeedScoutConfig.load(file).guiScale);
     }
 }

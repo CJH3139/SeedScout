@@ -2,6 +2,7 @@ package com.seedscout.neoforge;
 
 import com.seedscout.SeedScoutClient;
 import com.seedscout.compat.Compat;
+import com.seedscout.gui.SeedScoutConfigScreen;
 import com.seedscout.waypoint.BeamRenderer;
 import com.seedscout.waypoint.HudArrowRenderer;
 import com.seedscout.waypoint.ShareHandler;
@@ -10,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
@@ -20,13 +22,16 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
 
 @Mod(value = SeedScoutClient.MOD_ID, dist = Dist.CLIENT)
 public final class SeedScoutNeoForge {
-    public SeedScoutNeoForge(IEventBus modBus) {
+    public SeedScoutNeoForge(IEventBus modBus, ModContainer container) {
         SeedScoutClient.init(FMLPaths.GAMEDIR.get(), FMLPaths.CONFIGDIR.get());
+        container.registerExtensionPoint(IConfigScreenFactory.class,
+                (mod, parent) -> new SeedScoutConfigScreen(parent));
 
         modBus.addListener(RegisterKeyMappingsEvent.class, event -> {
             KeyMapping.Category category = new KeyMapping.Category(SeedScoutClient.KEY_CATEGORY);

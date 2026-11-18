@@ -21,6 +21,7 @@ subprojects { p ->
 
     repositories {
         mavenCentral()
+        maven { name = 'TerraformersMC'; url = 'https://maven.terraformersmc.com/releases/' }
     }
 
     sourceSets {
@@ -70,6 +71,7 @@ subprojects { p ->
             minecraft "com.mojang:minecraft:${p.minecraft_version}"
             implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
             implementation "net.fabricmc.fabric-api:fabric-api:${p.fabric_version}"
+            compileOnly("com.terraformersmc:modmenu:${p.modmenu_version}") { transitive = false }
 
             testImplementation "net.fabricmc:fabric-loader-junit:${rootProject.loader_version}"
             testImplementation platform("org.junit:junit-bom:5.11.4")

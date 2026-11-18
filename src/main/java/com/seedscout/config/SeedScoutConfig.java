@@ -27,6 +27,8 @@ public final class SeedScoutConfig {
     public boolean showGrid = false;
     public boolean showFacing = true;
     public int biomeY = 64;
+    /** GUI scale for the map screen; 0 follows the game's GUI scale. */
+    public int guiScale = 0;
 
     public static SeedScoutConfig defaults() {
         SeedScoutConfig config = new SeedScoutConfig();
@@ -57,6 +59,7 @@ public final class SeedScoutConfig {
             if (config.seeds == null) config.seeds = new LinkedHashMap<>();
             if (config.enabledStructures == null) config.enabledStructures = defaults().enabledStructures;
             if (config.lastRadius <= 0) config.lastRadius = 5000;
+            if (config.guiScale < 0) config.guiScale = 0;
             return config;
         } catch (IOException | JsonParseException e) {
             SeedScoutClient.LOGGER.warn("Could not read {}, using defaults", path, e);

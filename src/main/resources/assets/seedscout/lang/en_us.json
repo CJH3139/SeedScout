@@ -58,5 +58,13 @@
   "seedscout.screen.click_zoom": "Click to zoom in",
   "seedscout.share.follow": "Click to set as waypoint",
   "seedscout.share.hover": "%s at %s, %s",
-  "seedscout.share.set": "Waypoint set: %s at %s, %s"
+  "seedscout.share.set": "Waypoint set: %s at %s, %s",
+  "seedscout.config.title": "SeedScout Settings",
+  "seedscout.config.gui_scale": "Map GUI Scale",
+  "seedscout.config.gui_scale.game": "Game Setting",
+  "seedscout.config.disk_cache": "Disk Cache",
+  "seedscout.config.beam": "Waypoint Beam",
+  "seedscout.config.slime": "Slime Chunks",
+  "seedscout.config.grid": "Chunk Grid",
+  "seedscout.config.facing": "Player Facing"
 }

@@ -1,6 +1,7 @@
 package com.seedscout.gui;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.Window;
 import com.seedscout.SeedScoutClient;
 import com.seedscout.compat.Compat;
 import com.seedscout.config.SeedParser;
@@ -129,6 +130,7 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     protected void init() {
+        applyGuiScale();
         viewport.left = 0;
         viewport.top = 0;
         viewport.width = width - PANEL_WIDTH;
@@ -590,6 +592,28 @@ public class SeedScoutScreen extends Screen {
         viewportInitialized = false;
         lastResults = List.of();
         searching = false;
+    }
+
+    private void applyGuiScale() {
+        if (config.guiScale <= 0) return;
+        Window window = minecraft.getWindow();
+        int scale = window.calculateScale(config.guiScale, minecraft.isEnforceUnicode());
+        if (window.getGuiScale() != scale) window.setGuiScale(scale);
+        width = window.getGuiScaledWidth();
+        height = window.getGuiScaledHeight();
+    }
+
+    @Override
+    public void removed() {
+        super.removed();
+        restoreGuiScale(minecraft);
+    }
+
+    /** Puts the window back on the game's own GUI scale after the map screen overrode it. */
+    private static void restoreGuiScale(Minecraft client) {
+        Window window = client.getWindow();
+        int scale = window.calculateScale(client.options.guiScale().get(), client.isEnforceUnicode());
+        if (window.getGuiScale() != scale) window.setGuiScale(scale);
     }
 
     public static void resetForNewWorld() {
