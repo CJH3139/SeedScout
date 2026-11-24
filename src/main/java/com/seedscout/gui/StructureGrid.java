@@ -1,6 +1,7 @@
 package com.seedscout.gui;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.seedscout.worldgen.DungeonFinder;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -12,8 +13,13 @@ import net.minecraft.resources.Identifier;
 
 public final class StructureGrid {
     public static final int CELL = 22;
-    private static final int ON = 0xFF3A7BD5;
-    private static final int OFF = 0xFF1A2027;
+    // Inventory slot bevel: dark top-left, light bottom-right. Off slots use a darker set.
+    private static final int ON = 0xFF8B8B8B;
+    private static final int ON_SHADOW = 0xFF373737;
+    private static final int ON_LIGHT = 0xFFFFFFFF;
+    private static final int OFF = 0xFF2B2B2B;
+    private static final int OFF_SHADOW = 0xFF111111;
+    private static final int OFF_LIGHT = 0xFF4A4A4A;
     private static final int DIM = 0x99000000;
     private static final int TARGET = 0xFFFFD700;
 
@@ -54,7 +60,7 @@ public final class StructureGrid {
             int cx = x + (i % columns) * CELL;
             int cy = y + (i / columns) * CELL;
             boolean on = enabled.contains(id);
-            context.fill(cx, cy, cx + CELL - 2, cy + CELL - 2, on ? ON : OFF);
+            drawSlot(context, cx, cy, CELL - 2, on);
             StructureIcons.drawIcon(context, id, cx + 2, cy + 2);
             if (!on) {
                 context.fill(cx + 1, cy + 1, cx + CELL - 3, cy + CELL - 3, DIM);
@@ -72,6 +78,14 @@ public final class StructureGrid {
         if (hovered != null) {
             context.setTooltipForNextFrame(font, Component.literal(StructureIcons.displayName(hovered)), mouseX, mouseY);
         }
+    }
+
+    private static void drawSlot(GuiGraphicsExtractor context, int x, int y, int size, boolean on) {
+        context.fill(x, y, x + size, y + size, on ? ON : OFF);
+        context.fill(x, y, x + size - 1, y + 1, on ? ON_SHADOW : OFF_SHADOW);
+        context.fill(x, y, x + 1, y + size - 1, on ? ON_SHADOW : OFF_SHADOW);
+        context.fill(x + 1, y + size - 1, x + size, y + size, on ? ON_LIGHT : OFF_LIGHT);
+        context.fill(x + size - 1, y + 1, x + size, y + size, on ? ON_LIGHT : OFF_LIGHT);
     }
 
     public boolean mouseClicked(double mx, double my, int button) {
@@ -93,9 +107,12 @@ public final class StructureGrid {
         return true;
     }
 
+    /** All turns on everything but dungeons, which build terrain and stay opt-in one by one; None clears them too. */
     public void setAll(boolean on) {
         if (on) {
-            enabled.addAll(ids);
+            for (Identifier id : ids) {
+                if (!DungeonFinder.isDungeon(id)) enabled.add(id);
+            }
         } else {
             enabled.removeAll(ids);
         }

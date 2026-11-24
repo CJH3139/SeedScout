@@ -6,7 +6,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 public final class SegmentedControl {
     public record Segment(Supplier<Component> label, BooleanSupplier selected, Runnable onClick) {
@@ -15,13 +17,12 @@ public final class SegmentedControl {
         }
     }
 
-    private static final int ON = 0xFF3A7BD5;
-    private static final int ON_HOVER = 0xFF4C8DE6;
-    private static final int OFF = 0xFF2A313A;
-    private static final int OFF_HOVER = 0xFF363E48;
-    private static final int BORDER = 0xFF0B0E12;
-    private static final int TEXT_ON = 0xFFFFFFFF;
-    private static final int TEXT_OFF = 0xFFB8C2CC;
+    // Vanilla button sprites: the selected segment looks pressed in, the rest are normal stone buttons.
+    private static final Identifier BUTTON = Identifier.withDefaultNamespace("widget/button");
+    private static final Identifier BUTTON_HOVER = Identifier.withDefaultNamespace("widget/button_highlighted");
+    private static final Identifier BUTTON_PRESSED = Identifier.withDefaultNamespace("widget/button_disabled");
+    private static final int TEXT_ON = 0xFFFFFF55;
+    private static final int TEXT_OFF = 0xFFFFFFFF;
 
     private final int x;
     private final int y;
@@ -46,15 +47,14 @@ public final class SegmentedControl {
     }
 
     public void render(GuiGraphicsExtractor context, Font font, int mouseX, int mouseY) {
-        context.fill(x, y, x + width, y + height, BORDER);
         for (int i = 0; i < segments.size(); i++) {
             Segment segment = segments.get(i);
-            int left = segmentLeft(i) + 1;
-            int right = segmentRight(i) - 1;
+            int left = segmentLeft(i);
+            int right = segmentRight(i) - (i < segments.size() - 1 ? 1 : 0);
             boolean selected = segment.selected().getAsBoolean();
             boolean hovered = mouseX >= left && mouseX < right && mouseY >= y && mouseY < y + height;
-            int fill = selected ? (hovered ? ON_HOVER : ON) : (hovered ? OFF_HOVER : OFF);
-            context.fill(left, y + 1, right, y + height - 1, fill);
+            Identifier sprite = selected ? BUTTON_PRESSED : (hovered ? BUTTON_HOVER : BUTTON);
+            context.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, left, y, right - left, height);
             String text = segment.label().get().getString();
             int avail = right - left - 6;
             while (text.length() > 1 && font.width(text) > avail) {
@@ -62,7 +62,7 @@ public final class SegmentedControl {
             }
             int textX = (left + right) / 2 - font.width(text) / 2;
             int textY = y + (height - 8) / 2;
-            context.text(font, text, textX, textY, selected ? TEXT_ON : TEXT_OFF, false);
+            context.text(font, text, textX, textY, selected ? TEXT_ON : TEXT_OFF, true);
         }
     }
 

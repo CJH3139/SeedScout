@@ -66,6 +66,28 @@ class SeedScoutConfigTest {
     }
 
     @Test
+    void dungeonRadiusDefaultsAndClamps(@TempDir Path dir) throws Exception {
+        assertEquals(150, SeedScoutConfig.defaults().lastDungeonRadius);
+        Path file = dir.resolve("seedscout.json");
+        Files.writeString(file, "{ \"lastRadius\": 3000 }");
+        assertEquals(150, SeedScoutConfig.load(file).lastDungeonRadius);
+        // 250, 500 and 1000 were the radii before measuring; old configs fall back to the default.
+        for (int bad : new int[] {0, -5, 300, 5000, 250, 500, 1000}) {
+            Files.writeString(file, "{ \"lastDungeonRadius\": " + bad + " }");
+            assertEquals(150, SeedScoutConfig.load(file).lastDungeonRadius, "radius " + bad);
+        }
+        for (int ok : new int[] {100, 150, 200}) {
+            Files.writeString(file, "{ \"lastDungeonRadius\": " + ok + " }");
+            assertEquals(ok, SeedScoutConfig.load(file).lastDungeonRadius);
+        }
+    }
+
+    @Test
+    void dungeonsAreNotEnabledByDefault() {
+        assertFalse(SeedScoutConfig.defaults().enabledStructures.stream().anyMatch(s -> s.startsWith("seedscout:")));
+    }
+
+    @Test
     void negativeGuiScaleIsReset(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("seedscout.json");
         Files.writeString(file, "{ \"guiScale\": -3 }");

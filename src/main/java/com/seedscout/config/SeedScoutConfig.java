@@ -17,10 +17,17 @@ import java.util.Optional;
 
 public final class SeedScoutConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    /**
+     * Dungeon search radii in blocks, set from measurements: a cold spider search of the largest took 3.4 s on 26.3 and
+     * about 8 s on 26.1 and 26.2 (15 threads, 8 core CPU). Searches of found chunks come from the disk cache.
+     */
+    public static final List<Integer> DUNGEON_RADII = List.of(100, 150, 200);
+    public static final int DEFAULT_DUNGEON_RADIUS = 150;
 
     public Map<String, String> seeds = new LinkedHashMap<>();
     public List<String> enabledStructures = new ArrayList<>();
     public int lastRadius = 5000;
+    public int lastDungeonRadius = DEFAULT_DUNGEON_RADIUS;
     public boolean showBeam = true;
     public boolean showSlimeChunks = false;
     public boolean diskCache = true;
@@ -59,6 +66,7 @@ public final class SeedScoutConfig {
             if (config.seeds == null) config.seeds = new LinkedHashMap<>();
             if (config.enabledStructures == null) config.enabledStructures = defaults().enabledStructures;
             if (config.lastRadius <= 0) config.lastRadius = 5000;
+            if (!DUNGEON_RADII.contains(config.lastDungeonRadius)) config.lastDungeonRadius = DEFAULT_DUNGEON_RADIUS;
             if (config.guiScale < 0) config.guiScale = 0;
             return config;
         } catch (IOException | JsonParseException e) {

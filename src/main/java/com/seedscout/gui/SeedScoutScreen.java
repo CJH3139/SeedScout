@@ -19,14 +19,18 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Set;
 import com.seedscout.worldgen.Dimension;
+import com.seedscout.worldgen.DungeonFinder;
 import com.seedscout.worldgen.RegionHit;
 import com.seedscout.worldgen.SeedSource;
 import com.seedscout.worldgen.SeedWorld;
 import com.seedscout.waypoint.Waypoint;
 import com.seedscout.waypoint.WaypointState;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -63,6 +67,13 @@ public class SeedScoutScreen extends Screen {
     private static final int FACING_LINE = 0x90FFFFFF;
     private static final long FLASH_MILLIS = 2500;
     private static final double FEATURE_MAX_SCALE = 4.0;
+    /**
+     * Dungeon queries generate terrain per chunk, so they only run when zoomed in this far. One 770x520 map at 0.5 is
+     * about 770 chunks: 4.8 s on 26.3 and 8.6 s on 26.1.2 with 15 workers, against 15.6 s and 27.8 s at 1.0
+     * (DungeonOverlayTimingTest).
+     */
+    private static final double DUNGEON_MAX_SCALE = 0.5;
+    private static final List<Integer> DUNGEON_RADII = SeedScoutConfig.DUNGEON_RADII;
 
     protected static MapSession session;
     private static boolean sessionLoading;
@@ -77,6 +88,15 @@ public class SeedScoutScreen extends Screen {
     private static List<SearchResult> lastResults = List.of();
     private static boolean biomeMode;
     private static boolean searching;
+    /** Set to stop the running search; each search gets its own, so a stopped one can never clear a newer one. */
+    private static AtomicBoolean searchCancel = new AtomicBoolean();
+    /** Whether the running search builds terrain; only those stop when the map closes, others land in lastResults. */
+    private static boolean searchingDungeons;
+    /** The last search was stopped by Cancel or by closing the map, so the empty list says so instead of No results. */
+    private static boolean searchCancelled;
+    /** Chunks scanned (high 32 bits) and chunks in the square (low 32 bits) of the running search; per search too. */
+    private static AtomicLong searchProgress = new AtomicLong();
+    private int shownProgress = -1;
     private static Long lastAppliedSeed;
     private static Dimension currentDimension = Dimension.OVERWORLD;
 
@@ -105,6 +125,11 @@ public class SeedScoutScreen extends Screen {
     private Button searchButton;
     private ResultsListWidget resultsList;
     private final List<SegmentedControl> controls = new ArrayList<>();
+    private SegmentedControl radiusControl;
+    private boolean radiusDungeon;
+    private int radiusX;
+    private int radiusY;
+    private int radiusWidth;
     private int gridTop;
     private int hintY;
     private int layerLabelY;
@@ -254,21 +279,23 @@ public class SeedScoutScreen extends Screen {
         addRenderableWidget(targetButton);
         y += BTN_H + GAP;
 
-        List<SegmentedControl.Segment> radii = new ArrayList<>();
-        for (int r : RADII) {
-            radii.add(SegmentedControl.Segment.of(Component.translatable("seedscout.screen.radius_short", r / 1000),
-                    () -> config.lastRadius == r, () -> {
-                        config.lastRadius = r;
-                        SeedScoutClient.saveConfig();
-                    }));
-        }
         if (!RADII.contains(config.lastRadius)) config.lastRadius = 5000;
-        controls.add(new SegmentedControl(px, y, pw, SEG_H, radii));
+        radiusX = px;
+        radiusY = y;
+        radiusWidth = pw;
+        radiusControl = null;
+        updateRadiusControl();
         y += SEG_H + GAP;
 
-        searchButton = Button.builder(Component.translatable("seedscout.screen.search"), b -> runSearch())
+        searchButton = Button.builder(searchLabel(), b -> {
+                    if (searching) {
+                        cancelSearch();
+                    } else {
+                        runSearch();
+                    }
+                })
                 .bounds(px, y, pw, BTN_H).build();
-        searchButton.active = session != null && !searching;
+        searchButton.active = session != null;
         addRenderableWidget(searchButton);
         y += BTN_H + GAP + 2;
 
@@ -418,11 +445,42 @@ public class SeedScoutScreen extends Screen {
         biomeMode = biomes;
         closePicker();
         if (targetButton != null) targetButton.setMessage(targetLabel());
+        updateRadiusControl();
+    }
+
+    private static Component searchLabel() {
+        return Component.translatable(searching ? "seedscout.screen.cancel" : "seedscout.screen.search");
+    }
+
+    /** Stops the running search, if any: it schedules no more chunks and its results are dropped. */
+    private static void stopSearch() {
+        searchCancel.set(true);
+        searching = false;
+    }
+
+    private void cancelSearch() {
+        stopSearch();
+        searchCancelled = true;
+        searchButton.setMessage(searchLabel());
+        refreshList();
+    }
+
+    /** Dungeon searches report chunks scanned; the share of the whole square is an upper bound, they often stop early. */
+    private void showSearchProgress() {
+        if (!searching || resultsList == null) return;
+        long progress = searchProgress.get();
+        int total = (int) progress;
+        if (total <= 0) return;
+        int percent = (int) ((progress >>> 32) * 100 / total);
+        if (percent == shownProgress) return;
+        shownProgress = percent;
+        resultsList.setStatus(Component.translatable("seedscout.screen.searching_progress", percent));
     }
 
     private void refreshList() {
         if (resultsList == null) return;
         if (searching) {
+            shownProgress = -1;
             resultsList.setStatus(Component.translatable("seedscout.screen.searching"));
             return;
         }
@@ -432,7 +490,7 @@ public class SeedScoutScreen extends Screen {
             rows.add(new ResultsListWidget.Row(r.name(), sub, r.structureId(), r.color(), () -> pickResult(r),
                     () -> openPointMenu(lastMouseX, lastMouseY, r.x(), r.z(), r.name(), r.structureId())));
         }
-        resultsList.setRows(rows, Component.translatable("seedscout.screen.no_results"));
+        resultsList.setRows(rows, Component.translatable(searchCancelled ? "seedscout.screen.search_cancelled" : "seedscout.screen.no_results"));
     }
 
     private Component targetLabel() {
@@ -446,6 +504,39 @@ public class SeedScoutScreen extends Screen {
             lastStructure = id;
         }
         if (targetButton != null) targetButton.setMessage(targetLabel());
+        updateRadiusControl();
+    }
+
+    private boolean dungeonTarget() {
+        return !biomeMode && DungeonFinder.IDS.contains(lastStructure);
+    }
+
+    /** Dungeon searches are expensive, so they get their own smaller radii; the control is swapped when the target changes. */
+    private void updateRadiusControl() {
+        boolean dungeon = dungeonTarget();
+        if (radiusControl != null && dungeon == radiusDungeon) return;
+        radiusDungeon = dungeon;
+        List<SegmentedControl.Segment> radii = new ArrayList<>();
+        if (dungeon) {
+            for (int r : DUNGEON_RADII) {
+                radii.add(SegmentedControl.Segment.of(Component.translatable("seedscout.screen.radius_blocks", r),
+                        () -> config.lastDungeonRadius == r, () -> {
+                            config.lastDungeonRadius = r;
+                            SeedScoutClient.saveConfig();
+                        }));
+            }
+        } else {
+            for (int r : RADII) {
+                radii.add(SegmentedControl.Segment.of(Component.translatable("seedscout.screen.radius_short", r / 1000),
+                        () -> config.lastRadius == r, () -> {
+                            config.lastRadius = r;
+                            SeedScoutClient.saveConfig();
+                        }));
+            }
+        }
+        if (radiusControl != null) controls.remove(radiusControl);
+        radiusControl = new SegmentedControl(radiusX, radiusY, radiusWidth, SEG_H, radii);
+        controls.add(radiusControl);
     }
 
     private void togglePicker(List<Identifier> ids) {
@@ -491,24 +582,34 @@ public class SeedScoutScreen extends Screen {
         if (session == null) return;
         boolean biomes = biomeMode;
         Identifier targetId = biomes ? lastBiome : lastStructure;
-        int radiusBlocks = config.lastRadius;
+        int radiusBlocks = !biomes && DungeonFinder.IDS.contains(targetId) ? config.lastDungeonRadius : config.lastRadius;
         MapSession current = session;
+        stopSearch();
+        AtomicBoolean cancel = new AtomicBoolean();
+        searchCancel = cancel;
+        searchingDungeons = !biomes && DungeonFinder.IDS.contains(targetId);
+        AtomicLong progress = new AtomicLong();
+        searchProgress = progress;
         searching = true;
+        searchCancelled = false;
         lastResults = List.of();
         refreshList();
-        searchButton.active = false;
+        searchButton.setMessage(searchLabel());
         int cx = (int) Math.floor(viewport.centerX);
         int cz = (int) Math.floor(viewport.centerZ);
         ChunkPos center = new ChunkPos(cx >> 4, cz >> 4);
         MapWorker.submit(() -> {
+            if (cancel.get()) return;
             List<SearchResult> results;
             try {
                 if (biomes) {
                     results = current.world().findBiome(current.world().biome(targetId), cx, cz, radiusBlocks, 20, current.biomeY())
                             .stream().map(SearchResult::of).toList();
                 } else if (current.world().isFeature(targetId)) {
-                    results = current.world().findFeatures(targetId, cx, cz, radiusBlocks, 20)
+                    results = current.world().findFeatures(targetId, cx, cz, radiusBlocks, 20, cancel::get,
+                                    (scanned, total) -> progress.accumulateAndGet(((long) scanned << 32) | total, Math::max))
                             .stream().map(hit -> SearchResult.of(hit, cx, cz)).toList();
+                    current.world().flushDungeons();
                 } else {
                     results = current.world().findStructures(current.world().structure(targetId), center, radiusBlocks / 16, 20)
                             .stream().map(SearchResult::of).toList();
@@ -516,22 +617,22 @@ public class SeedScoutScreen extends Screen {
             } catch (Throwable t) {
                 SeedScoutClient.LOGGER.error("Search failed", t);
                 minecraft.execute(() -> {
-                    if (session != current) return;
+                    if (session != current || cancel.get()) return;
                     searching = false;
                     if (Compat.screen(minecraft) instanceof SeedScoutScreen s) {
                         s.resultsList.setStatus(Component.translatable("seedscout.screen.search_failed"));
-                        s.searchButton.active = true;
+                        s.searchButton.setMessage(searchLabel());
                     }
                 });
                 return;
             }
             minecraft.execute(() -> {
-                if (session != current) return;
+                if (session != current || cancel.get()) return;
                 searching = false;
                 lastResults = results;
                 if (Compat.screen(minecraft) instanceof SeedScoutScreen s) {
                     s.refreshList();
-                    s.searchButton.active = true;
+                    s.searchButton.setMessage(searchLabel());
                 }
             });
         });
@@ -591,7 +692,8 @@ public class SeedScoutScreen extends Screen {
         pendingKey = null;
         viewportInitialized = false;
         lastResults = List.of();
-        searching = false;
+        searchCancelled = false;
+        stopSearch();
     }
 
     private void applyGuiScale() {
@@ -606,6 +708,17 @@ public class SeedScoutScreen extends Screen {
     @Override
     public void removed() {
         super.removed();
+        // A dungeon search nobody can see would keep generating terrain, so closing the map stops it. Other searches
+        // are cheap per chunk and keep running, so their results wait in lastResults for the next open.
+        if (searching && searchingDungeons) {
+            stopSearch();
+            searchCancelled = true;
+        }
+        if (session != null) {
+            // Overlay dungeon regions nobody can see stop, and what they found so far reaches the disk cache.
+            session.features().dropWanted();
+            session.flushDungeons();
+        }
         restoreGuiScale(minecraft);
     }
 
@@ -616,10 +729,21 @@ public class SeedScoutScreen extends Screen {
         if (window.getGuiScale() != scale) window.setGuiScale(scale);
     }
 
+    /** Writes the open session's dungeons to the disk cache on this thread; for when the game quits. */
+    public static void flushDungeonsNow() {
+        MapSession current = session;
+        if (current == null) return;
+        try {
+            current.world().flushDungeons();
+        } catch (RuntimeException e) {
+            SeedScoutClient.LOGGER.warn("Could not write the dungeon cache", e);
+        }
+    }
+
     public static void resetForNewWorld() {
         clearSession();
         lastResults = List.of();
-        searching = false;
+        searchCancelled = false;
         lastAppliedSeed = null;
         viewportInitialized = false;
     }
@@ -647,7 +771,8 @@ public class SeedScoutScreen extends Screen {
                     if (session != null) session.close();
                     session = fresh;
                     lastResults = List.of();
-                    searching = false;
+                    searchCancelled = false;
+                    stopSearch();
                     if (Compat.screen(minecraft) instanceof SeedScoutScreen screen) {
                         screen.buildPanel();
                     }
@@ -666,7 +791,8 @@ public class SeedScoutScreen extends Screen {
                     sessionError = Component.translatable("seedscout.screen.unsupported").getString();
                     errorKey = key;
                     lastResults = List.of();
-                    searching = false;
+                    searchCancelled = false;
+                    stopSearch();
                     if (Compat.screen(minecraft) instanceof SeedScoutScreen screen) {
                         screen.buildPanel();
                     }
@@ -714,6 +840,7 @@ public class SeedScoutScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float deltaTicks) {
+        showSearchProgress();
         lastMouseX = mouseX;
         lastMouseY = mouseY;
         renderMap(context);
@@ -851,7 +978,8 @@ public class SeedScoutScreen extends Screen {
             line = Component.translatable("seedscout.screen.status", (int) viewport.centerX, (int) viewport.centerZ,
                     TileKey.blocksPerPixel(viewport.lod())).getString();
         }
-        int pending = session == null ? 0 : session.tiles().pendingCount() + session.structures().pendingCount();
+        int pending = session == null ? 0
+                : session.tiles().pendingCount() + session.structures().pendingCount() + session.features().pendingCount();
         if (pending > 0) {
             char spinner = "|/-\\".charAt((int) ((System.currentTimeMillis() / 120) % 4));
             line = spinner + " " + Component.translatable("seedscout.screen.pending", pending).getString();
@@ -965,14 +1093,22 @@ public class SeedScoutScreen extends Screen {
                 session.enabledStructures());
         List<MapMarker> markers = new ArrayList<>(hits.size());
         for (RegionHit hit : hits) markers.add(MapMarker.of(hit));
+        // Always queried, an empty set included, so dungeon regions left running stop once nothing wants them.
+        Set<Identifier> features = Set.of();
         if (viewport.scale <= FEATURE_MAX_SCALE) {
-            Set<Identifier> features = session.enabledFeatures();
-            if (!features.isEmpty()) {
-                for (var hit : session.features().query(viewport.minBlockX(), viewport.minBlockZ(),
-                        viewport.maxBlockX(), viewport.maxBlockZ(), features)) {
-                    markers.add(MapMarker.of(hit));
+            features = session.enabledFeatures();
+            if (viewport.scale > DUNGEON_MAX_SCALE || features.contains(DungeonFinder.ANY)) {
+                features = new HashSet<>(features);
+                if (viewport.scale > DUNGEON_MAX_SCALE) {
+                    features.removeAll(DungeonFinder.IDS);
+                } else {
+                    features.removeAll(DungeonFinder.IDS.subList(1, DungeonFinder.IDS.size()));
                 }
             }
+        }
+        for (var hit : session.features().query(viewport.minBlockX(), viewport.minBlockZ(),
+                viewport.maxBlockX(), viewport.maxBlockZ(), features)) {
+            markers.add(MapMarker.of(hit));
         }
         context.enableScissor(viewport.left, viewport.top, viewport.left + viewport.width, viewport.top + viewport.height);
         boolean dots = TileKey.blocksPerPixel(viewport.lod()) >= 64;

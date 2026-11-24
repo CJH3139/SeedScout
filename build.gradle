@@ -79,9 +79,23 @@ subprojects { p ->
             testRuntimeOnly "org.junit.platform:junit-platform-launcher"
         }
 
+        // Dev-only dungeon audit: `./gradlew :26.3:fabric:runClient -Dseedscout.audit=cx,cz,radius` reaches the game JVM.
+        if (System.getProperty("seedscout.audit") != null) {
+            loom {
+                runs {
+                    client {
+                        vmArg "-Dseedscout.audit=${System.getProperty("seedscout.audit")}"
+                    }
+                }
+            }
+        }
+
         test {
             useJUnitPlatform()
             maxHeapSize = "3G"
+            if (System.getProperty("seedscout.timing") != null) {
+                systemProperty "seedscout.timing", System.getProperty("seedscout.timing")
+            }
             testLogging {
                 events "passed", "failed", "skipped"
                 exceptionFormat "full"

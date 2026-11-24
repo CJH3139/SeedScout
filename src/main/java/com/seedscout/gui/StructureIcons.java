@@ -1,6 +1,7 @@
 package com.seedscout.gui;
 
 import com.seedscout.SeedScoutClient;
+import com.seedscout.worldgen.DungeonFinder;
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,6 +61,11 @@ public final class StructureIcons {
         item("nether_fossil", Items.BONE);
         item("end_city", Items.PURPUR_BLOCK);
         item("amethyst_geode", Items.AMETHYST_CLUSTER);
+
+        item(DungeonFinder.ANY, Items.SPAWNER);
+        item(DungeonFinder.IDS.get(1), Items.ZOMBIE_SPAWN_EGG);
+        item(DungeonFinder.IDS.get(2), Items.SKELETON_SPAWN_EGG);
+        item(DungeonFinder.IDS.get(3), Items.SPIDER_SPAWN_EGG);
     }
 
     private StructureIcons() {}
@@ -69,7 +75,11 @@ public final class StructureIcons {
     }
 
     private static void item(String structurePath, Item item) {
-        ITEMS.put(Identifier.withDefaultNamespace(structurePath), item);
+        item(Identifier.withDefaultNamespace(structurePath), item);
+    }
+
+    private static void item(Identifier id, Item item) {
+        ITEMS.put(id, item);
     }
 
     public static Identifier iconFor(Identifier structureId) {

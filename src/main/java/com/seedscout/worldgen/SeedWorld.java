@@ -1,5 +1,6 @@
 package com.seedscout.worldgen;
 
+import com.seedscout.SeedScoutClient;
 import com.seedscout.compat.BiomeLookup;
 import com.seedscout.compat.Compat;
 import java.lang.reflect.Field;
@@ -9,6 +10,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -67,6 +71,7 @@ public final class SeedWorld {
     public static final int SURFACE_Y = 64;
     public static final int MAX_FEATURE_CHUNKS = 250000;
     public static final String VANILLA_PROFILE = "vanilla";
+    private static final AtomicBoolean DUNGEON_SETUP_WARNED = new AtomicBoolean();
     private static final List<String> WORLDGEN_DIRS = List.of("worldgen", "dimension", "dimension_type");
 
     private static final Field JIGSAW_START_HEIGHT = field(JigsawStructure.class, "startHeight");
@@ -87,6 +92,8 @@ public final class SeedWorld {
     private final List<Holder<Structure>> structures;
     private final List<Holder<Biome>> biomes;
     private final FeatureFinder features;
+    private final TerrainSampler terrain;
+    private final DungeonFinder dungeons;
     private final java.util.concurrent.ConcurrentHashMap<Long, Boolean> terrainCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static SeedWorld create(long seed) {
@@ -223,22 +230,94 @@ public final class SeedWorld {
             finder = null;
         }
         this.features = finder;
+        this.terrain = new TerrainSampler(chunkGenerator, this.randomState, lookup, heightAccessor, seed);
+        FeatureFinder dungeonFeatures = finder;
+        this.dungeons = dimension == Dimension.OVERWORLD && finder != null
+                ? dungeonsOrNull(() -> DungeonFinder.create(dungeonFeatures, StructureReplay.create(seed, dimension.levelKey(), lookup,
+                        chunkGenerator, biomeSource, this.randomState, this.calculator, heightAccessor), terrain, heightAccessor))
+                : null;
+    }
+
+    /** The finder {@code setup} builds, or null if it throws: a failure there only removes dungeons, not the whole map. */
+    static DungeonFinder dungeonsOrNull(Supplier<DungeonFinder> setup) {
+        try {
+            return setup.get();
+        } catch (RuntimeException | LinkageError e) {
+            if (DUNGEON_SETUP_WARNED.compareAndSet(false, true)) {
+                SeedScoutClient.LOGGER.warn("Dungeon finding is off: its setup failed", e);
+            }
+            return null;
+        }
+    }
+
+    static HolderLookup.Provider vanillaLookup() {
+        return VanillaWrapperLookupHolder.INSTANCE;
+    }
+
+    TerrainSampler terrain() {
+        return terrain;
+    }
+
+    NoiseBasedChunkGenerator chunkGenerator() {
+        return chunkGenerator;
+    }
+
+    RandomState randomState() {
+        return randomState;
+    }
+
+    LevelHeightAccessor heightAccessor() {
+        return heightAccessor;
     }
 
     public List<Identifier> featureIds() {
-        return features == null ? List.of() : features.available();
+        List<Identifier> ids = new ArrayList<>(features == null ? List.of() : features.available());
+        if (dungeons != null) ids.addAll(DungeonFinder.IDS);
+        return List.copyOf(ids);
     }
 
     public boolean isFeature(Identifier id) {
+        if (DungeonFinder.isDungeon(id)) return dungeons != null;
         return features != null && features.supports(id);
     }
 
+    /**
+     * Keeps confirmed dungeons in {@code store} across sessions; it must be for this seed, dimension and profile.
+     * Null turns it off. No effect where dungeons are not found.
+     */
+    public void useDungeonStore(DungeonStore store) {
+        if (dungeons != null) dungeons.useStore(store);
+    }
+
+    /** Writes dungeons found since the last flush to the disk cache, if there is one. */
+    public void flushDungeons() {
+        DungeonStore store = dungeons == null ? null : dungeons.store();
+        if (store != null) store.flush();
+    }
+
     public List<FeatureFinder.FeatureHit> featuresInChunk(Identifier featureId, int chunkX, int chunkZ) {
+        if (DungeonFinder.isDungeon(featureId)) {
+            return dungeons == null ? List.of() : dungeons.inChunk(featureId, chunkX, chunkZ);
+        }
         return features == null ? List.of() : features.inChunk(featureId, chunkX, chunkZ);
     }
 
     public List<FeatureFinder.FeatureHit> findFeatures(Identifier featureId, int centerX, int centerZ, int radiusBlocks, int maxResults) {
+        return findFeatures(featureId, centerX, centerZ, radiusBlocks, maxResults, () -> false, (scanned, total) -> {});
+    }
+
+    /**
+     * Like {@link #findFeatures(Identifier, int, int, int, int)}. Dungeon searches build terrain per chunk, so they
+     * scan on several threads, return exactly the nearest {@code maxResults} in the scanned square, report progress
+     * and stop scheduling chunks soon after {@code cancelled} turns true. Other features ignore both callbacks.
+     */
+    public List<FeatureFinder.FeatureHit> findFeatures(Identifier featureId, int centerX, int centerZ, int radiusBlocks, int maxResults,
+                                                       BooleanSupplier cancelled, RingSearch.Progress progress) {
         if (!isFeature(featureId)) return List.of();
+        if (DungeonFinder.isDungeon(featureId)) {
+            return RingSearch.find((cx, cz) -> featuresInChunk(featureId, cx, cz), centerX, centerZ,
+                    Math.max(1, radiusBlocks >> 4), maxResults, MAX_FEATURE_CHUNKS, RingSearch.THREADS, cancelled, progress);
+        }
         int centerChunkX = centerX >> 4;
         int centerChunkZ = centerZ >> 4;
         int radiusChunks = Math.max(1, radiusBlocks >> 4);
@@ -249,7 +328,7 @@ public final class SeedWorld {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     scanned++;
-                    hits.addAll(features.inChunk(featureId, centerChunkX + dx, centerChunkZ + dz));
+                    hits.addAll(featuresInChunk(featureId, centerChunkX + dx, centerChunkZ + dz));
                 }
             }
             if (hits.size() >= maxResults * 2) break;

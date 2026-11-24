@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -35,7 +36,7 @@ public final class FeatureFinder {
 
     public static final List<Identifier> SUPPORTED = List.of(Identifier.withDefaultNamespace("amethyst_geode"));
 
-    private record Entry(PlacedFeature feature, int step, int index) {}
+    record Entry(PlacedFeature feature, int step, int index) {}
 
     private final long seed;
     private final ChunkGenerator generator;
@@ -43,6 +44,8 @@ public final class FeatureFinder {
     private final BiomeLookup biomes;
     private final LevelHeightAccessor heightAccessor;
     private final WorldGenLevel level;
+    private final List<FeatureSorter.StepFeatureData> steps;
+    private final HolderLookup.RegistryLookup<PlacedFeature> registry;
     private final Map<Identifier, Entry> entries = new LinkedHashMap<>();
 
     FeatureFinder(long seed, ChunkGenerator generator, BiomeSource biomeSource, BiomeLookup biomes,
@@ -53,21 +56,31 @@ public final class FeatureFinder {
         this.biomes = biomes;
         this.heightAccessor = heightAccessor;
         this.level = createLevel();
-        List<FeatureSorter.StepFeatureData> steps = featuresPerStep();
-        HolderLookup.RegistryLookup<PlacedFeature> registry = lookup.lookupOrThrow(Registries.PLACED_FEATURE);
+        this.steps = featuresPerStep();
+        this.registry = lookup.lookupOrThrow(Registries.PLACED_FEATURE);
         for (Identifier id : SUPPORTED) {
-            Optional<Holder.Reference<PlacedFeature>> holder = registry.get(ResourceKey.create(Registries.PLACED_FEATURE, id));
-            if (holder.isEmpty()) continue;
-            int step = stepOf(holder.get());
-            if (step < 0 || step >= steps.size()) continue;
-            int index;
-            try {
-                index = steps.get(step).indexMapping().applyAsInt(holder.get().value());
-            } catch (RuntimeException e) {
-                continue;
-            }
-            entries.put(id, new Entry(holder.get().value(), step, index));
+            Entry entry = resolve(id);
+            if (entry != null) entries.put(id, entry);
         }
+    }
+
+    /** The placed feature with its decoration step and feature index, or null if it is not generated here. */
+    Entry resolve(Identifier id) {
+        Optional<Holder.Reference<PlacedFeature>> holder = registry.get(ResourceKey.create(Registries.PLACED_FEATURE, id));
+        if (holder.isEmpty()) return null;
+        int step = stepOf(holder.get());
+        if (step < 0 || step >= steps.size()) return null;
+        int index;
+        try {
+            index = steps.get(step).indexMapping().applyAsInt(holder.get().value());
+        } catch (RuntimeException e) {
+            return null;
+        }
+        return new Entry(holder.get().value(), step, index);
+    }
+
+    long seed() {
+        return seed;
     }
 
     public List<Identifier> available() {
@@ -84,25 +97,34 @@ public final class FeatureFinder {
         WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(0L));
         long decorationSeed = random.setDecorationSeed(seed, chunkX << 4, chunkZ << 4);
         random.setFeatureSeed(decorationSeed, entry.index(), entry.step());
-        BlockPos origin = new BlockPos(chunkX << 4, heightAccessor.getMinY(), chunkZ << 4);
-        PlacementContext context = new PlacementContext(level, generator, Optional.of(entry.feature()));
         List<FeatureHit> hits = new ArrayList<>(1);
         try {
-            walk(entry.feature().placement(), 0, context, random, origin, featureId, hits);
+            walk(entry, random, chunkX, chunkZ, pos -> hits.add(new FeatureHit(featureId, pos.getX(), pos.getY(), pos.getZ())));
         } catch (UnsupportedOperationException e) {
             return List.of();
         }
         return hits;
     }
 
+    /**
+     * Runs the placement modifiers of {@code entry} for one chunk on an already seeded {@code random}, calling
+     * {@code leaf} at each final position as soon as it is produced, like vanilla's lazy placement. Throws
+     * {@link UnsupportedOperationException} if a modifier asks the level for something it cannot answer.
+     */
+    void walk(Entry entry, RandomSource random, int chunkX, int chunkZ, Consumer<BlockPos> leaf) {
+        BlockPos origin = new BlockPos(chunkX << 4, heightAccessor.getMinY(), chunkZ << 4);
+        PlacementContext context = new PlacementContext(level, generator, Optional.of(entry.feature()));
+        walk(entry.feature().placement(), 0, context, random, origin, leaf);
+    }
+
     private static void walk(List<PlacementModifier> modifiers, int depth, PlacementContext context, RandomSource random,
-                             BlockPos pos, Identifier featureId, List<FeatureHit> out) {
+                             BlockPos pos, Consumer<BlockPos> leaf) {
         if (depth == modifiers.size()) {
-            out.add(new FeatureHit(featureId, pos.getX(), pos.getY(), pos.getZ()));
+            leaf.accept(pos);
             return;
         }
         Compat.positions(modifiers.get(depth), context, random, pos,
-                next -> walk(modifiers, depth + 1, context, random, next, featureId, out));
+                next -> walk(modifiers, depth + 1, context, random, next, leaf));
     }
 
     private int stepOf(Holder<PlacedFeature> feature) {

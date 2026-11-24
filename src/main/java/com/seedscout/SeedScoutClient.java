@@ -71,6 +71,8 @@ public final class SeedScoutClient {
     }
 
     public static void stopping() {
+        SeedScoutScreen.flushDungeonsNow();
+        // Runs flushes of closed sessions that had not started yet on this thread.
         MapWorker.shutdown();
     }
 }

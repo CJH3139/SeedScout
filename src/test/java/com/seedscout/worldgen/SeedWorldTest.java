@@ -3,6 +3,7 @@ package com.seedscout.worldgen;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -217,5 +218,21 @@ class SeedWorldTest {
             assertTrue(hits.get(i - 1).distance() <= hits.get(i).distance());
         }
         assertTrue(world.allBiomes().stream().map(SeedWorld::idOf).map(Identifier::toString).toList().contains("minecraft:plains"));
+    }
+
+    @Test
+    void dungeonSetupFailureOnlyTurnsDungeonsOff() {
+        assertNull(SeedWorld.dungeonsOrNull(() -> {
+            throw new IllegalStateException("structure replay could not start");
+        }));
+        assertNull(SeedWorld.dungeonsOrNull(() -> {
+            throw new NoSuchMethodError("missing in this version");
+        }));
+    }
+
+    @Test
+    void dungeonsAreFoundWhenSetupWorks() {
+        assertTrue(world.isFeature(DungeonFinder.ANY));
+        assertTrue(world.featureIds().containsAll(DungeonFinder.IDS));
     }
 }

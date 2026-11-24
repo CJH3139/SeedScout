@@ -8,7 +8,7 @@ Chunkbase inside Minecraft. A client-side Fabric and NeoForge mod for Minecraft 
 
 - **Exact map.** Biomes and structures come from Minecraft's own world generation, so they match the game. Overworld, Nether, and End. In singleplayer, data packs like Terralith are picked up automatically.
 - **Fast.** Six zoom levels, background rendering, blurry-first loading, and a disk cache so seeds you have seen open instantly.
-- **Find things.** Search any structure, biome, or amethyst geode within 2k to 50k blocks. Results list nearest first and are highlighted on the map. Biome Y layers reveal lush caves, dripstone caves, and deep dark.
+- **Find things.** Search any structure, biome, or amethyst geode within 2k to 50k blocks. Results list nearest first and are highlighted on the map. Biome Y layers reveal lush caves, dripstone caves, and deep dark. Dungeons show their spawner mob, and you can show or search only zombie, skeleton, or spider dungeons.
 - **Get there.** Click a result or icon to set a waypoint. A HUD arrow and a beam through terrain lead you to it.
 - **Extras.** Hover for biome name and coordinates, go to typed coordinates, shift-drag to measure, slime chunks, chunk grid, spawn marker, share locations in chat with click-to-follow for other SeedScout users, teleport (needs permission), and PNG export.
 - **Servers.** Enter the seed once per server and it is remembered.
@@ -40,6 +40,7 @@ The 1.21.11 version lives on the `1.21.11` branch.
 - Settings live in `config/seedscout.json`. Cached tiles live in `seedscout/tiles` in the game folder, capped at about 512 MB; delete the folder any time.
 - On multiplayer servers the map assumes vanilla generation.
 - Structure checks mirror the game's biome and terrain rules but do not assemble jigsaw pieces, so a village can very rarely be shown where the game skipped it. Geodes that would touch water or lava are also skipped by the game but still shown here.
+- Dungeons are checked against generated terrain, so they appear only when zoomed in, and dungeon searches use a smaller radius (100 to 200 blocks) with a progress readout and Cancel. When the disk cache setting is on, found dungeons are cached on disk next to the tiles. A room next to a mineshaft or a lake that generates later can be missed or shown where the game has none. Rooms that cross a chunk border can differ, as the game itself varies there, and the mob is rarely wrong for a room that shares a chunk with such a border room.
 - The search is centered on the map's center, so click Center first if you want results near you.
 
 ## License

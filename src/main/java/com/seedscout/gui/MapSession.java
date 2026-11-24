@@ -9,6 +9,8 @@ import com.seedscout.map.TilePixels;
 import com.seedscout.map.TileStore;
 import com.seedscout.worldgen.BiomeColors;
 import com.seedscout.worldgen.Dimension;
+import com.seedscout.worldgen.DungeonFinder;
+import com.seedscout.worldgen.DungeonStore;
 import com.seedscout.worldgen.SeedWorld;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -49,6 +51,10 @@ public final class MapSession {
         this.textureManager = textureManager;
         this.biomeY = world.dimension() == Dimension.OVERWORLD ? biomeY : SeedWorld.SURFACE_Y;
         this.tiles = openTiles();
+        if (SeedScoutClient.config().diskCache) {
+            world.useDungeonStore(new DungeonStore(cacheRoot(), SharedConstants.getCurrentVersion().name(),
+                    world.dimension().name().toLowerCase(Locale.ROOT), world.seed(), world.profile()));
+        }
         this.biomeColors = (x, z) -> BiomeColors.colorOf(SeedWorld.idOf(world.biomeAt(x, this.biomeY, z)));
         this.sets = world.allStructureSets();
         for (String id : SeedScoutClient.config().enabledStructures) {
@@ -74,7 +80,9 @@ public final class MapSession {
                 setId -> world.concentricRingHits(setById(setId)),
                 MapWorker::submit,
                 client::execute);
-        this.features = new FeatureIndex(world::featuresInChunk, MapWorker::submit, client::execute);
+        // Dungeon regions build terrain per chunk: small, queued after the visible tiles, and stopped once off screen.
+        this.features = new FeatureIndex(world::featuresInChunk, MapWorker::submitOrdered, client::execute,
+                DungeonFinder::isDungeon, FeatureIndex.COSTLY_REGION_CHUNKS);
     }
 
     public FeatureIndex features() { return features; }
@@ -155,9 +163,15 @@ public final class MapSession {
         return cached;
     }
 
+    /** Writes dungeons found so far to the disk cache soon, ahead of queued map work, and also when the game quits. */
+    public void flushDungeons() {
+        MapWorker.submitEssential(world::flushDungeons);
+    }
+
     public void close() {
         tiles.clear();
         structures.clear();
         features.clear();
+        flushDungeons();
     }
 }

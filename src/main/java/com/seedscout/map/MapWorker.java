@@ -1,7 +1,9 @@
 package com.seedscout.map;
 
 import com.seedscout.SeedScoutClient;
+import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -9,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class MapWorker {
     private static final AtomicLong SEQUENCE = new AtomicLong();
 
-    private record Job(double priority, long sequence, Runnable task) implements Runnable, Comparable<Job> {
+    private record Job(double priority, long sequence, Runnable task, boolean essential) implements Runnable, Comparable<Job> {
         @Override
         public void run() {
             try {
@@ -45,7 +47,20 @@ public final class MapWorker {
     }
 
     public static void submitOrdered(double priority, Runnable task) {
-        EXECUTOR.execute(new Job(priority, SEQUENCE.incrementAndGet(), task));
+        EXECUTOR.execute(new Job(priority, SEQUENCE.incrementAndGet(), task, false));
+    }
+
+    /**
+     * Runs before every queued job, and still runs, on the thread calling {@link #shutdown}, if it has not started by
+     * then. For short jobs that must not be lost, like writing caches to disk.
+     */
+    public static void submitEssential(Runnable task) {
+        Job job = new Job(-Double.MAX_VALUE, SEQUENCE.incrementAndGet(), task, true);
+        try {
+            EXECUTOR.execute(job);
+        } catch (RejectedExecutionException e) {
+            job.run();
+        }
     }
 
     public static int pendingCount() {
@@ -53,6 +68,9 @@ public final class MapWorker {
     }
 
     public static void shutdown() {
-        EXECUTOR.shutdownNow();
+        List<Runnable> dropped = EXECUTOR.shutdownNow();
+        for (Runnable runnable : dropped) {
+            if (runnable instanceof Job job && job.essential()) job.run();
+        }
     }
 }
